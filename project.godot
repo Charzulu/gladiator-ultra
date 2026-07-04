@@ -1,0 +1,66 @@
+[application]
+config/name="Gladiator Ultra"
+run/main_scene="res://scenes/main/Main.tscn"
+config/version="0.1.0"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+
+[physics]
+common/physics_ticks_per_second=60
+
+[autoload]
+CombatGlobals="*res://scripts/autoload/CombatGlobals.gd"
+LimbTracker="*res://scripts/autoload/LimbTracker.gd"
+
+[input]
+move_up={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":87,"physical_keycode":0,"key_label":0,"unicode":119,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+move_down={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":83,"physical_keycode":0,"key_label":0,"unicode":115,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+move_left={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":65,"physical_keycode":0,"key_label":0,"unicode":97,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+move_right={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":68,"physical_keycode":0,"key_label":0,"unicode":100,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+strike_jab={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":81,"physical_keycode":0,"key_label":0,"unicode":113,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+strike_cross={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":69,"physical_keycode":0,"key_label":0,"unicode":101,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+strike_hook={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":70,"physical_keycode":0,"key_label":0,"unicode":102,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+strike_kick={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":82,"physical_keycode":0,"key_label":0,"unicode":114,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+block={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":32,"physical_keycode":0,"key_label":0,"unicode":32,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}
+takedown={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"keycode":84,"physical_keycode":0,"key_label":0,"unicode":116,"echo":false,"pressed":false,"shift":false,"alt":false,"ctrl":false,"meta":false,"command":false,"window_id":0)
+ ]
+}

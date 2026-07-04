@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLADIATOR ULTRA — Prototype</title>
+<style>
+  :root{
+    --red:#d43a2f; --blue:#2f5fd4; --gold:#f2c14e; --hp:#4ec95c; --hp-low:#d43a2f;
+    --stam:#3fb7d9; --ink:#0c0e16; --panel:#141826; --line:#2a3148; --txt:#e8e4d8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);
+    font-family:"Courier New",ui-monospace,monospace;color:var(--txt);
+    -webkit-font-smoothing:none;user-select:none}
+  #stage{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* ── ARCADE HUD ── */
+  #hud{position:fixed;inset:0;pointer-events:none;display:none}
+  .bars{position:absolute;top:14px;left:0;right:0;display:flex;justify-content:space-between;padding:0 18px;gap:12px}
+  .side{width:42%}
+  .side.right{text-align:right}
+  .fname{font-size:15px;font-weight:bold;letter-spacing:2px;text-shadow:2px 2px 0 #000}
+  .frec{font-size:10px;letter-spacing:1px;opacity:.75;margin-top:2px}
+  .bar{height:14px;background:#000;border:2px solid var(--line);margin-top:4px;position:relative}
+  .bar .fill{position:absolute;top:0;bottom:0;transition:width .12s steps(6)}
+  .side.left .fill{left:0}
+  .side.right .fill{right:0}
+  .hp .fill{background:var(--hp)}
+  .hp.low .fill{background:var(--hp-low)}
+  .st{height:8px;margin-top:3px}
+  .st .fill{background:var(--stam)}
+  .bl{height:4px;margin-top:3px}
+  .bl .fill{background:var(--gold)}
+  .burn{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(
+    -45deg,#3a0a0a 0 3px,#200505 3px 6px);pointer-events:none}
+  .side.left .burn{right:0}
+  .side.right .burn{left:0}
+  .zones{flex-wrap:wrap}
+  .zone{min-width:44px}
+
+  /* ── MAIN MENU ── */
+  #menu{position:fixed;inset:0;background:
+    radial-gradient(ellipse at 50% -20%, #23304f 0%, var(--ink) 62%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;z-index:5}
+  #mlogo{font-size:52px;font-weight:bold;letter-spacing:12px;color:#fff;
+    text-shadow:5px 5px 0 var(--red),10px 10px 0 #000}
+  #mlogo span{color:var(--gold)}
+  #mtag{font-size:11px;letter-spacing:4px;opacity:.7}
+  #mitems{display:flex;flex-direction:column;gap:12px;margin-top:16px;width:min(380px,86vw)}
+  .mbtn{background:var(--panel);border:2px solid var(--line);color:var(--txt);
+    font-family:inherit;font-size:14px;letter-spacing:3px;padding:13px;cursor:pointer;
+    transition:all .08s steps(2)}
+  .mbtn:hover{border-color:var(--gold);color:var(--gold);transform:translateX(6px)}
+  #mfoot{font-size:9px;letter-spacing:2px;opacity:.5;margin-top:18px}
+
+  /* ── CHARACTER FORGE ── */
+  #editor{position:fixed;inset:0;background:rgba(8,10,18,.92);display:none;
+    align-items:center;justify-content:center;z-index:10}
+  #forge{background:var(--panel);border:2px solid var(--gold);padding:18px 22px;
+    width:min(560px,94vw);max-height:92vh;overflow-y:auto}
+  #forge h2{font-size:16px;letter-spacing:3px;color:var(--gold);margin-bottom:4px}
+  #forge .hint{font-size:9px;letter-spacing:1px;opacity:.65;margin-bottom:12px}
+  .frow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .frow label{width:92px;font-size:10px;letter-spacing:1px;opacity:.8}
+  .frow input[type=text]{flex:1;background:#000;border:2px solid var(--line);color:var(--txt);
+    font-family:inherit;font-size:12px;padding:5px 8px}
+  .frow select{flex:1;background:#000;border:2px solid var(--line);color:var(--txt);
+    font-family:inherit;font-size:11px;padding:5px}
+  .frow input[type=range]{flex:1;accent-color:var(--gold)}
+  .frow .val{width:34px;text-align:right;font-size:11px;color:var(--gold)}
+  #pool{font-size:12px;letter-spacing:2px;margin:10px 0;color:var(--gold)}
+  #pool.over{color:var(--hp-low);animation:blink .4s steps(2) infinite}
+  .swatches{display:flex;gap:6px;flex:1}
+  .sw{width:26px;height:26px;border:2px solid var(--line);cursor:pointer}
+  .sw.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+  .fbtns{display:flex;gap:10px;margin-top:14px}
+  .fbtn{flex:1;background:#000;border:2px solid var(--gold);color:var(--gold);
+    font-family:inherit;font-size:12px;letter-spacing:2px;padding:9px;cursor:pointer}
+  .fbtn:hover{background:var(--gold);color:#000}
+  .fbtn.ghost{border-color:var(--line);color:var(--txt);opacity:.8}
+  .card.create{border-style:dashed;border-color:var(--gold);display:flex;
+    align-items:center;justify-content:center;min-height:120px}
+  .card.create h3{color:var(--gold)}
+  .card .tag{display:inline-block;font-size:8px;letter-spacing:1px;background:var(--gold);
+    color:#000;padding:1px 4px;margin-left:4px;vertical-align:middle}
+  .zones{display:flex;gap:6px;margin-top:4px}
+  .zone{flex:1;display:flex;align-items:center;gap:3px}
+  .zone i{font-style:normal;font-size:8px;letter-spacing:1px;opacity:.65}
+  .zbar{flex:1;height:5px;background:#000;border:1px solid var(--line);position:relative}
+  .zbar div{position:absolute;top:0;bottom:0;left:0;background:var(--hp);transition:width .15s steps(4)}
+  .side.right .zbar div{left:auto;right:0}
+  .side.right .zone{flex-direction:row-reverse}
+  .status{font-size:10px;letter-spacing:2px;height:14px;margin-top:4px;font-weight:bold}
+  .status.warn{color:var(--gold);animation:blink .5s steps(2) infinite}
+  @keyframes blink{50%{opacity:.2}}
+  #clockbox{position:absolute;top:12px;left:50%;transform:translateX(-50%);text-align:center}
+  #round{font-size:11px;letter-spacing:3px;color:var(--gold)}
+  #clock{font-size:26px;font-weight:bold;letter-spacing:2px;text-shadow:3px 3px 0 #000}
+
+  /* ── IMPACT CALLOUTS (the signature) ── */
+  #callout{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);
+    font-size:44px;font-weight:bold;letter-spacing:6px;text-shadow:4px 4px 0 #000,-2px -2px 0 #000;
+    opacity:0;color:var(--gold)}
+  #callout.show{animation:slam .8s steps(8) forwards}
+  @keyframes slam{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(2.4)}
+    12%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    70%{opacity:1}
+    100%{opacity:0;transform:translate(-50%,-58%) scale(1)}
+  }
+  #banner{position:absolute;top:46%;left:0;right:0;text-align:center;font-size:30px;font-weight:bold;
+    letter-spacing:8px;text-shadow:4px 4px 0 #000;display:none;color:#fff}
+  #subbanner{position:absolute;top:56%;left:0;right:0;text-align:center;font-size:13px;letter-spacing:3px;
+    display:none;color:var(--gold)}
+
+  /* ── HELP ── */
+  #help{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+    font-size:10px;letter-spacing:1px;background:rgba(10,12,20,.85);border:2px solid var(--line);
+    padding:8px 14px;line-height:1.7;text-align:center}
+  #help b{color:var(--gold)}
+
+  /* ── SELECT SCREEN ── */
+  #select{position:fixed;inset:0;background:
+    radial-gradient(ellipse at 50% -20%, #23304f 0%, var(--ink) 60%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
+  #logo{font-size:38px;font-weight:bold;letter-spacing:10px;color:#fff;text-shadow:4px 4px 0 var(--red),8px 8px 0 #000}
+  #logo span{color:var(--gold)}
+  #tag{font-size:11px;letter-spacing:4px;opacity:.7}
+  #prompt{font-size:13px;letter-spacing:3px;color:var(--gold)}
+  #grid{display:grid;grid-template-columns:repeat(3,minmax(180px,220px));gap:12px}
+  .card{background:var(--panel);border:2px solid var(--line);padding:12px;cursor:pointer;pointer-events:auto;
+    transition:transform .08s steps(2)}
+  .card:hover{border-color:var(--gold);transform:translateY(-3px)}
+  .card.p1{border-color:var(--red);box-shadow:0 0 0 2px var(--red)}
+  .card h3{font-size:13px;letter-spacing:1px}
+  .card .nick{font-size:10px;color:var(--gold);letter-spacing:1px;margin:2px 0 6px}
+  .card .meta{font-size:9px;opacity:.75;letter-spacing:1px;margin-bottom:8px}
+  .stat{display:flex;align-items:center;gap:6px;font-size:9px;margin-top:3px}
+  .stat i{width:30px;font-style:normal;opacity:.7}
+  .stat .g{flex:1;height:6px;background:#000;border:1px solid var(--line)}
+  .stat .g div{height:100%;background:var(--stam)}
+  #footer{font-size:9px;letter-spacing:2px;opacity:.5}
+  @media (max-width:720px){#grid{grid-template-columns:repeat(2,1fr)}}
+  #errbar{position:fixed;left:0;right:0;bottom:0;z-index:99;display:none;
+    background:#3a0a0a;color:#ff9a8a;border-top:2px solid #d43a2f;
+    font-size:10px;letter-spacing:1px;padding:6px 12px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="errbar"></div>
+
+<script>
+window.addEventListener('error', e=>{
+  const el=document.getElementById('errbar');
+  if(el){ el.style.display='block'; el.textContent='\u26A0 '+e.message+'  ('+(e.filename||'inline')+':'+(e.lineno||'?')+')'; }
+});
+window.addEventListener('unhandledrejection', e=>{
+  const el=document.getElementById('errbar');
+  if(el){ el.style.display='block'; el.textContent='\u26A0 '+String(e.reason); }
+});
+</script>
+
+<div id="menu">
+  <div id="mlogo">GLADIATOR <span>ULTRA</span></div>
+  <div id="mtag">A UFC DEMAKE IN THE STYLE OF VIRTUA FIGHTER 2</div>
+  <div id="mitems">
+    <button class="mbtn" id="mFight">FIGHT</button>
+    <button class="mbtn" id="mWatch">ATTRACT MODE — CPU vs CPU</button>
+    <button class="mbtn" id="mForge">CHARACTER FORGE</button>
+  </div>
+  <div id="mfoot">WIND-UP · ACTIVE · RECOVERY — EVERY STRIKE, EVERY TIME · DEFENSE IS INSTANT</div>
+</div>
+
+<div id="select" style="display:none">
+  <div id="logo">GLADIATOR <span>ULTRA</span></div>
+  <div id="tag">VIRTUA-STYLE MMA · STAND-UP PROTOTYPE</div>
+  <div id="prompt">SELECT YOUR FIGHTER</div>
+  <div id="grid"></div>
+  <div id="footer">DEFENSE IS INSTANT · ATTACKS HAVE STARTUP FRAMES · BALANCE PHYSICS INSPIRED BY SUMOTORI DREAMS</div>
+</div>
+
+<div id="editor">
+  <div id="forge">
+    <h2>CHARACTER FORGE</h2>
+    <div class="hint">EVERY SLIDER CHANGES THE SIMULATION — REACH, FRAME SPEED, CHIN, GAS TANK, GUARD</div>
+    <div class="frow"><label>NAME</label><input type="text" id="cName" maxlength="18" placeholder="RICKY BALBOA"></div>
+    <div class="frow"><label>NICKNAME</label><input type="text" id="cNick" maxlength="16" placeholder="THE PROSPECT"></div>
+    <div class="frow"><label>STYLE</label><select id="cStyle">
+      <option value="boxing">BOXING — hands, pocket pressure</option>
+      <option value="muay_thai">MUAY THAI — kicks, attrition</option>
+      <option value="karate">KARATE — range, blitz counters</option>
+      <option value="mma">MMA — balanced toolkit</option>
+      <option value="wrestling">WRESTLING — pressure, grit</option>
+      <option value="bjj">BJJ — patient, durable</option>
+    </select></div>
+    <div class="frow"><label>HEIGHT</label><input type="range" id="cHeight" min="165" max="200" value="180"><span class="val" id="vHeight">180</span></div>
+    <div class="frow"><label>SKIN</label><div class="swatches" id="cSkin"></div></div>
+    <div id="pool">POINTS REMAINING: 0</div>
+    <div class="frow"><label>POWER</label><input type="range" class="stat" id="cPOW" min="30" max="92" value="50"><span class="val" id="vPOW">50</span></div>
+    <div class="frow"><label>SPEED</label><input type="range" class="stat" id="cSPD" min="30" max="92" value="50"><span class="val" id="vSPD">50</span></div>
+    <div class="frow"><label>CARDIO</label><input type="range" class="stat" id="cCRD" min="30" max="92" value="50"><span class="val" id="vCRD">50</span></div>
+    <div class="frow"><label>TOUGHNESS</label><input type="range" class="stat" id="cTGH" min="30" max="92" value="50"><span class="val" id="vTGH">50</span></div>
+    <div class="frow"><label>CHIN</label><input type="range" class="stat" id="cCHN" min="30" max="92" value="50"><span class="val" id="vCHN">50</span></div>
+    <div class="frow"><label>TECHNIQUE</label><input type="range" class="stat" id="cTEC" min="30" max="92" value="50"><span class="val" id="vTEC">50</span></div>
+    <div class="fbtns">
+      <button class="fbtn ghost" id="cCancel">CANCEL</button>
+      <button class="fbtn" id="cCreate">FORGE FIGHTER</button>
+    </div>
+  </div>
+</div>
+
+<div id="hud">
+  <div class="bars">
+    <div class="side left">
+      <div class="fname" id="n1">—</div><div class="frec" id="r1"></div>
+      <div class="bar hp" id="hpb1"><div class="fill" id="hp1"></div><div class="burn" id="hpx1"></div></div>
+      <div class="bar st"><div class="fill" id="st1"></div><div class="burn" id="stx1"></div></div>
+      <div class="bar bl"><div class="fill" id="bl1"></div></div>
+      <div class="zones">
+        <div class="zone"><i>HD</i><div class="zbar"><div id="zhead1"></div></div></div>
+        <div class="zone"><i>BD</i><div class="zbar"><div id="zbody1"></div></div></div>
+        <div class="zone"><i>LA</i><div class="zbar"><div id="zarmL1"></div></div></div>
+        <div class="zone"><i>RA</i><div class="zbar"><div id="zarmR1"></div></div></div>
+        <div class="zone"><i>LL</i><div class="zbar"><div id="zlegL1"></div></div></div>
+        <div class="zone"><i>RL</i><div class="zbar"><div id="zlegR1"></div></div></div>
+      </div>
+      <div class="status" id="s1"></div>
+    </div>
+    <div class="side right">
+      <div class="fname" id="n2">—</div><div class="frec" id="r2"></div>
+      <div class="bar hp" id="hpb2"><div class="fill" id="hp2"></div><div class="burn" id="hpx2"></div></div>
+      <div class="bar st"><div class="fill" id="st2"></div><div class="burn" id="stx2"></div></div>
+      <div class="bar bl"><div class="fill" id="bl2"></div></div>
+      <div class="zones">
+        <div class="zone"><i>HD</i><div class="zbar"><div id="zhead2"></div></div></div>
+        <div class="zone"><i>BD</i><div class="zbar"><div id="zbody2"></div></div></div>
+        <div class="zone"><i>LA</i><div class="zbar"><div id="zarmL2"></div></div></div>
+        <div class="zone"><i>RA</i><div class="zbar"><div id="zarmR2"></div></div></div>
+        <div class="zone"><i>LL</i><div class="zbar"><div id="zlegL2"></div></div></div>
+        <div class="zone"><i>RL</i><div class="zbar"><div id="zlegR2"></div></div></div>
+      </div>
+      <div class="status" id="s2"></div>
+    </div>
+  </div>
+  <div id="clockbox"><div id="round">ROUND 1</div><div id="clock">1:39</div></div>
+  <div id="callout"></div>
+  <div id="banner"></div>
+  <div id="subbanner"></div>
+  <div id="help">
+    <b>A/D</b> in&nbsp;/&nbsp;out &nbsp; <b>◀ ▶</b> circle &nbsp; <b>SPACE</b> block(instant) &nbsp; <b>Q/E</b> slip &nbsp; <b>S</b> duck &nbsp;|&nbsp;
+    <b>J</b> jab <b>K</b> cross <b>U</b> hook <b>I</b> uppercut <b>O</b> overhand <b>V</b> teep <b>N</b> leg <b>M</b> round <b>,</b> head kick<br>
+    <b>PAD:</b> LS move · RS slip/duck · LT block · X/Y/A/B strikes · RB/RT kicks · LB+face = power strikes &nbsp;|&nbsp;
+    <b>H</b> help <b>T</b> cpu <b>R</b> rematch <b>ESC</b> fighter select
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ════════════════════════════════════════════════════════════════
+   GLADIATOR ULTRA — playable stand-up slice
+   Sim: fixed-step 60Hz, seeded RNG, UFC-style frame data.
+   THE TIMING RULE (per design brief):
+     · Defense is NEAR-INSTANT: block = 0-frame flag, slips/duck = 1f startup
+     · Attacks are DELAYED: 3f (jab) to 16f (axe-class) startup, scaled by SPD,
+       plus recovery vulnerability and 1.4× whiff recovery.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── deterministic RNG ── */
+let _s = 0x9E3779B9;
+function rnd(){ _s ^= _s<<13; _s>>>=0; _s ^= _s>>17; _s ^= _s<<5; _s>>>=0; return _s/4294967296; }
+
+/* ── MOVE DATA (data-tables.md baseline @ SPD 50) ──
+   evade: which head-movement beats it ('slip' = straights, 'duck' = arcs/high kicks) */
+const MOVES = {
+  jab:       {n:'JAB',        st:3,  ac:3, rc:5,  reach:1.20, dmg:5,  stam:2,   stun:1, zone:'head', skill:'boxing',     kind:'straight', limb:'lead',  evade:'slip'},
+  cross:     {n:'CROSS',      st:5,  ac:4, rc:7,  reach:1.30, dmg:9,  stam:3.5, stun:1, zone:'head', skill:'boxing',     kind:'straight', limb:'rear',  evade:'slip'},
+  hook:      {n:'HOOK',       st:7,  ac:4, rc:9,  reach:1.00, dmg:12, stam:4,   stun:2, zone:'head', skill:'boxing',     kind:'hook',     limb:'lead',  evade:'duck'},
+  uppercut:  {n:'UPPERCUT',   st:6,  ac:4, rc:8,  reach:0.80, dmg:11, stam:4,   stun:1, zone:'head', skill:'boxing',     kind:'upper',    limb:'rear',  evade:null},
+  overhand:  {n:'OVERHAND',   st:9,  ac:5, rc:12, reach:1.10, dmg:14, stam:5,   stun:3, zone:'head', skill:'boxing',     kind:'over',     limb:'rear',  evade:'duck'},
+  front_kick:{n:'TEEP',       st:7,  ac:4, rc:8,  reach:1.60, dmg:8,  stam:3,   stun:1, zone:'body', skill:'kickboxing', kind:'push',     limb:'legRear', evade:null, push:0.35},
+  leg_kick:  {n:'LEG KICK',   st:7,  ac:4, rc:8,  reach:1.50, dmg:7,  stam:3.5, stun:0, zone:'legs', skill:'kickboxing', kind:'lowkick',  limb:'legRear', evade:null},
+  roundhouse:{n:'ROUNDHOUSE', st:10, ac:5, rc:14, reach:1.80, dmg:14, stam:5.5, stun:2, zone:'body', skill:'kickboxing', kind:'round',    limb:'legRear', evade:null},
+  head_kick: {n:'HEAD KICK',  st:13, ac:5, rc:18, reach:1.80, dmg:18, stam:7,   stun:3, zone:'head', skill:'kickboxing', kind:'high',     limb:'legRear', evade:'duck'},
+};
+const STUN_DUR = [[0,0],[0.15,0.35],[0.35,0.5],[0.8,1.5],[1.5,2.5],[3.0,5.0],[999,999]];
+
+/* ── ROSTER (data-tables.md §1, fields this slice uses) ── */
+const ROSTER = [
+  {id:'drakov', name:'IVAN DRAKOV',  nick:'THE HAMMER',    wc:'HEAVYWEIGHT',  rec:'18-2 · 16 KO', style:'boxing',
+   STR:92,SPD:38,END:55,TGH:85, chin:88, boxing:82,kickboxing:35,headMovement:38,footwork:35, gasT:35, skin:0xE8C8A0},
+  {id:'kenji',  name:'KENJI TAKESHI',nick:'THE OCTOPUS',   wc:'LIGHTWEIGHT',  rec:'14-3 · 9 SUB', style:'wrestling',
+   STR:60,SPD:72,END:82,TGH:65, chin:60, boxing:45,kickboxing:30,headMovement:50,footwork:55, gasT:85, skin:0xD8B890},
+  {id:'cruz',   name:'DAMIEN CRUZ',  nick:'THE PHANTOM',   wc:'WELTERWEIGHT', rec:'22-4 · 11 KO', style:'karate',
+   STR:68,SPD:88,END:72,TGH:58, chin:52, boxing:62,kickboxing:92,headMovement:68,footwork:92, gasT:72, skin:0xC89A70},
+  {id:'steele', name:'MARCUS STEELE',nick:'THE ALL-AROUND',wc:'MIDDLEWEIGHT', rec:'12-1 · 4 KO',  style:'mma',
+   STR:65,SPD:68,END:72,TGH:62, chin:60, boxing:65,kickboxing:60,headMovement:58,footwork:62, gasT:65, skin:0x9A6B48},
+  {id:'hiro',   name:'HIRO TANAKA',  nick:'THE COBRA',     wc:'FEATHERWEIGHT',rec:'16-5 · 14 SUB',style:'bjj',
+   STR:48,SPD:75,END:78,TGH:55, chin:45, boxing:38,kickboxing:35,headMovement:55,footwork:60, gasT:80, skin:0xE0C098},
+  {id:'santos', name:'LUCIANA SANTOS',nick:'THE HURRICANE',wc:'STRAWWEIGHT',  rec:'10-1 · 3 KO',  style:'muay_thai',
+   STR:55,SPD:88,END:85,TGH:48, chin:42, boxing:55,kickboxing:78,headMovement:62,footwork:72, gasT:88, skin:0xB07850},
+];
+
+/* AI style profiles → weighted strike menus + preferred range */
+const STYLE_AI = {
+  boxing:    {range:1.15, aggr:0.55, menu:[['jab',30],['cross',24],['hook',18],['uppercut',10],['overhand',10],['leg_kick',8]]},
+  wrestling: {range:0.95, aggr:0.45, menu:[['jab',34],['cross',26],['hook',16],['uppercut',12],['leg_kick',12]]},
+  karate:    {range:1.85, aggr:0.50, menu:[['front_kick',18],['leg_kick',20],['roundhouse',20],['head_kick',12],['jab',16],['cross',14]]},
+  mma:       {range:1.35, aggr:0.50, menu:[['jab',22],['cross',18],['hook',12],['leg_kick',18],['roundhouse',14],['front_kick',10],['head_kick',6]]},
+  bjj:       {range:0.90, aggr:0.35, menu:[['jab',36],['cross',26],['hook',14],['front_kick',12],['leg_kick',12]]},
+  muay_thai: {range:1.50, aggr:0.62, menu:[['jab',14],['cross',14],['hook',10],['leg_kick',22],['roundhouse',18],['front_kick',12],['head_kick',10]]},
+};
+
+/* ═══════════════ SIM ═══════════════ */
+const DT = 1/60, CAGE_R = 4.2, VF2_SCALE = 1.5;
+function nearCage(f){ return Math.hypot(f.px,f.pz) > CAGE_R-0.80; }
+
+function clampCage(f){
+  const r=Math.hypot(f.px,f.pz), max=CAGE_R-0.35;
+  if(r>max){ f.px*=max/r; f.pz*=max/r; }
+}
+function separate(){
+  // BUGFIX: never shove a downed/rising body across the mat — clamp only
+  const upright = f => f.state!=='down' && f.state!=='getup' && f.state!=='ko';
+  if(upright(F1) && upright(F2)){
+    let dx=F2.px-F1.px, dz=F2.pz-F1.pz, d=Math.hypot(dx,dz);
+    const MIN=0.55;
+    if(d<MIN){
+      if(d<1e-4){ dx=1; dz=0; d=1; }
+      const push=(MIN-d)/2/d;
+      F1.px-=dx*push; F1.pz-=dz*push; F2.px+=dx*push; F2.pz+=dz*push;
+    }
+  }
+  clampCage(F1); clampCage(F2);
+}
+
+class Sim {
+  constructor(def, dir){
+    this.def = def; this.dir = dir;           // spawn side; facing is dynamic (auto-face)
+    this.px = -1.4*dir; this.pz = 0;          // 2D octagon position
+    this.vx = 0; this.vz = 0;                 // smoothed velocity — accel-based footwork
+    this.yaw = dir>0 ? Math.PI/2 : -Math.PI/2;
+    this.walkPhase = 0; this.slipOff = 0;
+    this.maxHP = 130 + def.TGH*0.7; this.hp = this.maxHP;
+    this.maxSt = 100 + def.END*0.5; this.st = this.maxSt;
+    // EA-UFC-style long-term caps: permanent damage burns max health;
+    // strikes thrown + body damage burn max stamina. Recoverable portions
+    // regenerate toward the (shrinking) cap.
+    this.hpCap = this.maxHP; this.stCap = this.maxSt; this.sinceHit = 99;
+    // per-zone durability: every limb is individual
+    this.zoneMax = { head:this.maxHP*0.55, body:this.maxHP*0.55,
+                     armL:this.maxHP*0.30, armR:this.maxHP*0.30,
+                     legL:this.maxHP*0.35, legR:this.maxHP*0.35 };
+    this.zone = Object.assign({}, this.zoneMax);
+    this.startupF = 4;                                   // frames of the current strike's startup
+    this.landed = false;                                 // did the current strike make contact
+    this.spdMult = Math.max(0.6, 1.8 - def.SPD*0.012);   // frame multiplier
+    this.dmgTaken = 1 - def.TGH*0.0035;
+    // STATS MATTER: footwork scales movement for HUMAN players too, not just AI circling
+    this.moveSpd = (0.8 + def.SPD*0.008) * (0.85 + def.footwork*0.003) * 1.22;  // m/s — VF2 deliberate
+    this.reachMult = def.reachMult || 1;                  // height-derived reach on every strike
+    this.reactF = Math.max(5, Math.round(18 - def.SPD*0.12));
+    // Sumotori-inspired balance: a losable physical resource
+    this.bal = 100; this.stumbleT = 0;
+    // UFC-style health events: a recently-damaged zone is VULNERABLE (amplified damage)
+    // until it goes 12s without contact; cleared between rounds
+    this.vuln = {head:0, body:0, armL:0, armR:0, legL:0, legR:0};
+    this.state='idle'; this.phase='none'; this.move=null; this.pf=0; this.hitDone=false;
+    this.block=false;                                     // ★ 0-frame defense
+    this.ev=null; this.evT=0;                             // {type:'slip'|'duck', stage}
+    this.stun=0; this.stunT=0; this.downT=0; this.getupT=0; this.seated=false;
+    this.kd=0; this.roundDmg=0; this.buffered=null;
+    this.counterWin=0; this.guardT=0; this.ai = {cool:0.8, react:null};
+    this.human=false;
+    this.wobble=0;
+  }
+  // BUGFIX: was inverted — elite cardio (high gasT) must gas LATER, i.e. lower threshold
+  gassed(){ return this.st/this.maxSt < 0.45 - this.def.gasT*0.003; }
+  zoneFrac(z){
+    if(z==='arms') return (this.zoneFrac('armL')+this.zoneFrac('armR'))/2;
+    if(z==='legs') return (this.zoneFrac('legL')+this.zoneFrac('legR'))/2;
+    return this.zone[z]/this.zoneMax[z];
+  }
+  effChin(){ return this.def.chin * (0.35 + 0.65*this.zoneFrac('head')) * (this.zoneFrac('legs')<0.4?0.9:1); }
+  // stamina → frame speed is CONTINUOUS: every strike slows as the tank drains.
+  // VF2_SCALE slows all attack phases to Virtua Fighter 2's deliberate, readable weight
+  frames(base, isRec){
+    const fat = 1 - this.st/this.maxSt;
+    let m = this.spdMult * (1 + fat*fat*0.4) * (this.gassed()?(isRec?1.25:1.15):1);
+    return Math.max(2, Math.round(base*m*VF2_SCALE));
+  }
+  canAct(){ return this.state==='idle' && this.phase==='none' && !this.ev; }
+  // BUGFIX: 'stun' was never a state (dead clause) — evades were legal while hard-stunned.
+  // Per STUN_EFFECTS: tiers ≤2 may block/move the head, tier 3+ may not.
+  canDefend(){ return this.state==='idle' && this.phase==='none' && this.stun<=2; }
+
+  startMove(id, foe){
+    const m=MOVES[id];
+    if(!this.canAct() || this.st < m.stam*0.6){ return false; }
+    if((id==='leg_kick'||id==='roundhouse'||id==='head_kick') && this.zoneFrac('legR')<=0.12) return false; // kicks use YOUR rear leg
+    this.move=m; this.phase='startup'; this.pf=this.frames(m.st,false); this.pfMax=this.pf;
+    this.startupF=this.pf; this.landed=false;
+    this.hitDone=false; this.state='attack';
+    this.st=Math.max(0,this.st - m.stam*(this.gassed()?1.3:1));
+    this.stCap=Math.max(this.maxSt*0.35, this.stCap - m.stam*0.16);  // every strike burns long-term gas
+    // step-in: strikes carry you forward (UFC distance closing); decays through the strike
+    if(foe){
+      const dx=foe.px-this.px, dz=foe.pz-this.pz, d=Math.hypot(dx,dz)||1;
+      const lunge = m.limb==='rear' ? 0.55 : m.limb==='legRear' ? 0.35 : 0.28;
+      this.vx += dx/d*lunge; this.vz += dz/d*lunge;
+    }
+    return true;
+  }
+  startEvade(type){
+    if(!this.canDefend() || this.ev) return;
+    // ★ near-instant: 1 startup frame. Head-movement skill WIDENS the active window
+    const hm = Math.round(this.def.headMovement*0.035);            // up to +3f at 92 skill
+    this.ev={type, stage:'startup', f:1, active:(type==='slip'?4:5)+hm, rec:3};
+  }
+  interrupt(){ this.move=null; this.phase='none'; this.pf=0; this.state='idle'; this.buffered=null; }
+
+  /* balance breaks the INSTANT it empties — mid-kick included. Very Sumotori. */
+  drainBalance(amount){
+    this.bal -= amount;
+    if(this.bal<=0 && this.state!=='down' && this.state!=='getup'
+       && this.state!=='ko' && this.state!=='stumble'){
+      this.bal=0;
+      this.interrupt(); this.ev=null; this.block=false;
+      this.state='stumble'; this.stumbleT=0.9+rnd()*0.4;
+      fx.callout('BALANCE LOST!','#ffd76a'); snd(95,0.08,0.2);
+    } else this.bal=Math.max(0,this.bal);
+  }
+
+  applyStun(tier, dur){
+    if(tier<=0) return;
+    if(tier>=3){ this.interrupt(); this.ev=null; }
+    if(tier>=this.stun){ this.stun=tier; this.stunT=Math.max(this.stunT,dur); }
+    if(tier===5){
+      this.state='down'; this.kd++;
+      // dropped at the fence: slump seated against the cage — shorter count, back to the chain-link
+      this.seated = nearCage(this);
+      this.downT = this.seated ? dur*0.7 : dur;
+      if(this.seated) this.yaw = Math.atan2(-this.px, -this.pz);  // face the center
+    }
+    if(tier===6){ this.state='ko'; }
+  }
+
+  update(inp, foe){
+    // stun clock
+    if(this.stun>0 && this.state!=='down' && this.state!=='ko'){
+      this.stunT-=DT; this.wobble+=DT*10;
+      if(this.stunT<=0){ this.stun=0; this.stunT=0; }
+    }
+    if(this.state==='down'){
+      this.downT-=DT;
+      if(this.downT<=0){ this.state='getup'; this.getupT=0.8; }
+      return;
+    }
+    if(this.state==='getup'){
+      this.getupT-=DT;
+      if(this.getupT<=0){ this.state='idle'; this.stun=0; this.stunT=0; this.guardT=1.4; this.bal=60; this.seated=false; }
+      return;
+    }
+    if(this.state==='stumble'){                  // Sumotori moment: flailing for footing
+      this.stumbleT-=DT; this.wobble+=DT*15;
+      if(this.stumbleT<=0){ this.state='idle'; this.bal=45; }
+      return;
+    }
+    if(this.state==='ko') return;
+    if(this.guardT>0) this.guardT-=DT;
+
+    // ── balance regenerates with footwork; breaking is handled in drainBalance ──
+    this.bal = Math.min(100, this.bal + (11 + this.def.footwork*0.09)*DT);
+    for(const z in this.vuln) if(this.vuln[z]>0) this.vuln[z]-=DT;
+
+    // ── defense first: it must win ties with attacks (design rule) ──
+    this.block = !!inp.block && this.canDefend();                   // instant on/off
+    if(inp.evade && !this.ev) this.startEvade(inp.evade);
+    if(this.ev){
+      this.ev.f--;
+      if(this.ev.f<=0){
+        if(this.ev.stage==='startup'){ this.ev.stage='active'; this.ev.f=this.ev.active; }
+        else if(this.ev.stage==='active'){ this.ev.stage='rec'; this.ev.f=this.ev.rec; }
+        else this.ev=null;
+      }
+    }
+    if(this.counterWin>0) this.counterWin--;
+
+    // ── movement: fight-relative 2D footwork (blocked while attacking or hard-stunned) ──
+    const caps = this.stun; // tier 2 = no move
+    if(this.phase==='none' && caps<2 && !this.ev){
+      // frame: forward = toward opponent, lateral = circle around them
+      const dx=foe.px-this.px, dz=foe.pz-this.pz, d=Math.hypot(dx,dz)||1;
+      const fwx=dx/d, fwz=dz/d, sxp=-fwz, szp=fwx;
+      let spd = this.moveSpd * (0.65+0.35*this.zoneFrac('legs')) * (this.block?0.45:1) * (this.gassed()?0.75:1);
+      let mv = inp.mv||0, lat = inp.lat||0;
+      const mag = Math.hypot(mv,lat); if(mag>1){ mv/=mag; lat/=mag; }
+      if(mv<0) mv*=0.78;                                   // backpedal is slower
+      const tvx=(fwx*mv + sxp*lat*0.85)*spd, tvz=(fwz*mv + szp*lat*0.85)*spd;
+      const k=Math.min(1, 14*DT);                          // footwork acceleration
+      this.vx += (tvx-this.vx)*k; this.vz += (tvz-this.vz)*k;
+    } else { this.vx*=0.82; this.vz*=0.82; }               // momentum carries into strikes
+    this.px += this.vx*DT; this.pz += this.vz*DT;
+    this.walkPhase += Math.hypot(this.vx,this.vz)*DT*10;
+    // ── auto-face the opponent (the alignment fix) ──
+    {
+      const ty=Math.atan2(foe.px-this.px, foe.pz-this.pz);
+      let dy=ty-this.yaw;
+      while(dy>Math.PI)dy-=2*Math.PI; while(dy<-Math.PI)dy+=2*Math.PI;
+      this.yaw += dy*Math.min(1, 10*DT);
+    }
+
+    // ── attack input (delayed by startup frames — the design rule) ──
+    if(inp.attack){
+      if(this.canAct() && this.stun<=2 && !this.block) this.startMove(inp.attack, foe); // tiers 1-2 CAN strike
+      else if(this.phase==='recovery' && this.pf<=8) this.buffered=inp.attack; // input buffer
+    }
+
+    // ── move phase machine ──
+    if(this.phase!=='none' && this.move){
+      this.pf--;
+      if(this.pf<=0){
+        if(this.phase==='startup'){
+          this.phase='active'; this.pf=this.frames(this.move.ac+2,false); this.pfMax=this.pf; // VF2: hold the extension
+          snd(this.move.limb==='legRear'?300:420, 0.03, 0.05);   // whoosh: the strike commits
+        } else if(this.phase==='active'){
+          // BUGFIX: hitDone only means "checked" — landed is the truth for whiff punishment
+          const whiff = !this.landed;
+          if(whiff){
+            // Sumotori tax: throwing yourself at air costs balance — head kicks most of all
+            const balCost = this.move.limb==='legRear' ? (this.move.kind==='high'?26:14) : 6;
+            this.drainBalance(balCost);
+            if(this.state==='stumble') return;   // toppled out of the kick entirely
+          }
+          this.phase='recovery';
+          this.pf=this.frames(this.move.rc*(whiff?1.4:1),true); this.pfMax=this.pf;
+        } else {
+          this.phase='none'; this.state='idle';
+          const b=this.buffered; this.buffered=null; this.move=null;
+          if(b) this.startMove(b, foe);
+        }
+      }
+      // contact check on first active frame
+      if(this.phase==='active' && !this.hitDone){
+        this.hitDone=true;
+        this.landed = resolveContact(this, foe);
+      }
+    }
+
+    // stamina regen — body damage collapses recovery; clamped to the burned cap
+    if(this.phase==='none' && this.state==='idle'){
+      const bodyF = 0.4 + 0.6*this.zoneFrac('body');
+      this.st = Math.min(this.stCap, this.st + (this.block?2.5:7)*bodyF*DT);
+    }
+    // recoverable health: after 3s without contact, health regens toward the cap
+    this.sinceHit += DT;
+    if(this.sinceHit>3 && this.hp<this.hpCap && this.state==='idle')
+      this.hp = Math.min(this.hpCap, this.hp + 2.4*DT);
+  }
+}
+
+/* ── FK strike-tip solver ──
+   The sim mirrors the renderer's two-bone strike keyframes as pure math:
+   shoulder/hip rotation + elbow/knee angle as functions of phase progress t,
+   solved forward through the bone chain to a world-space tip position.
+   Velocity = tip travel over the FINAL 40% of startup ÷ elapsed time.
+   Because startup frame counts scale with SPD and stamina (frames()),
+   a tired fighter's identical arc takes longer → lower tip velocity →
+   less damage. Stamina affects the velocity of every strike, organically. */
+function rotVX(v,a){ const c=Math.cos(a),s=Math.sin(a); return {x:v.x, y:v.y*c-v.z*s, z:v.y*s+v.z*c}; }
+function rotVY(v,a){ const c=Math.cos(a),s=Math.sin(a); return {x:v.x*c+v.z*s, y:v.y, z:-v.x*s+v.z*c}; }
+
+function strikeJoints(m, t){ // mirror of poseRig strike keyframes
+  const k=m.kind, P={shx:-0.5, shy:0, el:1.9, hipx:0, kn:0.08};
+  if(k==='straight'){ P.shx=-0.5-1.1*t;  P.el=1.9-1.75*t; }
+  if(k==='hook')    { P.shx=-0.9*Math.max(0,t); P.shy=-1.9*t; P.el=1.5; } // shy includes torso whip
+  if(k==='upper')   { P.shx=-0.2-1.3*t;  P.el=1.8-0.4*t; }
+  if(k==='over')    { P.shx=-0.4-1.9*t;  P.shy=-0.9*t; P.el=1.6-1.1*t; }  // shy includes torso whip
+  if(k==='push')    { P.hipx=-1.5*t;     P.kn=2.0-1.9*t; }
+  if(k==='lowkick') { P.hipx=-0.8*t;     P.kn=0.4; }
+  if(k==='round')   { P.hipx=-1.35*t;    P.kn=0.3+0.2*t; }
+  if(k==='high')    { P.hipx=-2.15*t;    P.kn=0.9-0.7*t; }
+  return P;
+}
+function strikeTip(m, t){ // fighter-local space, facing +Z
+  const P=strikeJoints(m,t);
+  if(m.limb==='legRear'){
+    const HIP={x:-0.11,y:0.89,z:0}, TH=0.38, SH=0.44;
+    const th=rotVX({x:0,y:-TH,z:0},P.hipx);
+    const sn=rotVX(rotVX({x:0,y:-SH,z:0},P.kn),P.hipx);
+    return {x:HIP.x+th.x+sn.x, y:HIP.y+th.y+sn.y, z:HIP.z+th.z+sn.z};
+  }
+  const SHJ={x:0.24,y:1.49,z:0}, UP=0.28, FO=0.41;         // forearm + glove
+  const up=rotVY(rotVX({x:0,y:-UP,z:0},P.shx),P.shy);
+  const fo=rotVY(rotVX(rotVX({x:0,y:-FO,z:0},P.el),P.shx),P.shy);
+  return {x:SHJ.x+up.x+fo.x, y:SHJ.y+up.y+fo.y, z:SHJ.z+up.z+fo.z};
+}
+function strikeVelocity(att, m){ // m/s at impact — arc-length integrated over the full travel
+  let arc=0, prev=strikeTip(m,0);
+  for(let i=1;i<=6;i++){
+    const p=strikeTip(m,i/6);
+    arc+=Math.hypot(p.x-prev.x,p.y-prev.y,p.z-prev.z); prev=p;
+  }
+  const time=Math.max(2,att.startupF)*DT;
+  let v=arc/time;
+  if(m.limb==='legRear') v *= 1.6;                          // hip-driven kinetic chain (lever advantage)
+  if(m.limb==='legRear') v *= 0.7 + 0.3*att.zoneFrac('legR'); // a damaged rear leg whips slower
+  return v;
+}
+
+/* ── contact resolution: 10-step damage + finer stun table ── */
+function defSideEarly(m){ return (m.limb==='rear'||m.limb==='legRear') ? 'L' : 'R'; }
+function resolveContact(att, def){
+  const m = att.move;
+  // BUGFIX: downed/rising/finished fighters cannot be struck (no GnP in this slice) —
+  // hits during the count were re-triggering knockdowns and inflating the 3-KD TKO rule
+  if(def.state==='down'||def.state==='getup'||def.state==='ko') return false;
+  const range = Math.hypot(att.px-def.px, att.pz-def.pz);
+  if(range > m.reach*att.reachMult + 0.12){ fx.popup(null); return false; } // whiff (out of range)
+
+  // evasion beats it (defense reads the startup — that's the whole game)
+  if(def.ev && def.ev.stage==='active' && m.evade===def.ev.type){
+    fx.callout('SLIPPED!', '#9fe3ff'); def.counterWin=22; snd(180,0.05,0.12); return false;
+  }
+  // accuracy
+  const skill = att.def[m.skill];
+  let acc = 0.66 + skill*0.003 - (m.zone==='head'? def.def.headMovement*0.0018 : 0);
+  if(att.gassed()) acc -= 0.08;
+  if(rnd() > Math.max(0.25,Math.min(0.95,acc))){ fx.popup(null); return false; } // clean miss
+
+  const isCounter = def.phase==='startup' || att.counterWin>0;
+
+  // STEP 1-7: raw
+  let raw = m.dmg;
+  raw *= 1 + att.def.STR*0.01;                                   // 2 STR
+  raw *= 0.5 + skill/200;                                        // 3 skill
+  raw *= Math.max(0.2, 1 - Math.abs(range-m.reach*att.reachMult)*0.15/0.1*0.1); // 4 range falloff
+  const tipV = strikeVelocity(att, m);                           // 5 REAL limb-tip velocity (FK)
+  raw *= Math.min(1.5, Math.max(0.8, 0.72 + tipV*0.032));
+  if(isCounter) raw *= 1.35;                                     // 6
+  if(att.gassed()) raw *= 0.7;
+  // STEP 8-9: mitigation
+  let mit = raw * def.dmgTaken * (def.gassed()?1.2:1);
+  // STEP 10: zone
+  const zoneMult = m.zone==='head'?1.3 : m.zone==='body'?1.0 : 0.7;
+  mit *= zoneMult;
+  mit *= 0.85;   // VF2/EA pacing: slower, more deliberate attrition
+  const vulnZone = m.zone==='legs'?('leg'+defSideEarly(m)) : m.zone==='body'?'body' : 'head';
+  if(def.vuln[vulnZone]>0) mit *= 1.25;   // health event: working a damaged area pays off
+  if(def.stun>=3) mit *= 0.85;   // hurt fighters cover up instinctively — slows the snowball
+  if(def.guardT>0) mit *= 0.6;   // post-knockdown cover-up window
+
+  // side-correct limb routing: attacker's rear limb crosses to the defender's LEFT side
+  const defSide = (m.limb==='rear'||m.limb==='legRear') ? 'L' : 'R';
+  // block: instant, hugely effective — but the blocking ARM absorbs it and degrades
+  let blocked=false, guardBreak=false;
+  const mitOnGuard = mit;
+  if(def.block){
+    blocked=true;
+    def.st -= 1.5 + mit*0.35;
+    const gArm = 'arm'+defSide;
+    def.zone[gArm] = Math.max(0, def.zone[gArm] - mitOnGuard*0.55);
+    if(def.st<=0){ def.st=0; guardBreak=true; mit*=0.7; }        // broken: only -30%
+    else {
+      // guard effectiveness degrades as the arms take damage: -70% → -45% head
+      const guardEff = 0.30 + (1-def.zoneFrac('arms'))*0.25;
+      mit *= (m.zone==='head'? guardEff : guardEff+0.20);
+    }
+  }
+
+  // stun tier (finer table) vs effective chin, zone-capped
+  const chin = Math.max(6, def.effChin());
+  let tier = mit>0 ? Math.max(m.stun,1) : 0;
+  if(isCounter) tier=Math.max(tier,3);
+  if(mit>chin*3) tier=6; else if(mit>chin*2) tier=Math.max(tier,5);
+  else if(mit>chin*1.5) tier=Math.max(tier,4);
+  else if(mit>chin*1.0) tier=Math.max(tier,3);
+  else if(mit>chin*0.6) tier=Math.max(tier,2);
+  if(m.zone!=='head') tier=Math.min(tier,1);
+  if(blocked && !guardBreak) tier=Math.min(tier,1);
+  if(guardBreak) tier=Math.max(tier,3);
+
+  // balance damage: clean hits rock the stance far more than blocked ones
+  const wasStumbling = def.state==='stumble';
+  def.drainBalance(blocked? mit*0.35 : mit*0.8 + tier*3);
+
+  // apply damage: overall pool + INDIVIDUAL limb pools + long-term caps (EA model)
+  if(m.zone==='legs'){
+    const lz='leg'+defSide;
+    def.zone[lz]=Math.max(0,def.zone[lz]-mit*1.5);
+    def.hp-=mit*0.45; def.st=Math.max(0,def.st-mit*0.6);
+    def.stCap=Math.max(def.maxSt*0.35, def.stCap-mit*0.10);
+  } else if(m.zone==='body'){
+    def.zone.body=Math.max(0,def.zone.body-mit);
+    def.hp-=mit*0.8; def.st=Math.max(0,def.st-mit*0.7);
+    def.stCap=Math.max(def.maxSt*0.35, def.stCap-mit*0.26);   // body work burns the gas tank forever
+  } else {
+    if(!blocked) def.zone.head=Math.max(0,def.zone.head-mit);
+    def.hp -= mit;
+  }
+  if(!blocked) def.hpCap = Math.max(def.maxHP*0.25, def.hpCap - mit*0.35); // permanent damage
+  def.sinceHit = 0;
+  att.roundDmg += mit;
+  if(!blocked) def.vuln[vulnZone]=12;      // the area is opened up
+  const [dmin,dmax]=STUN_DUR[tier];
+  const kb = (tier>=3?0.35:mit>10?0.16:0.07) + (m.push||0);
+  if(def.hp<=0){
+    if(def.kd>=2 || tier>=6){ def.hp=0; tier=6; }               // out cold
+    else { def.hp = Math.min(def.hpCap, def.maxHP*0.12 + def.def.TGH*0.1); tier=Math.max(tier,5); } // dropped — beats the count on heart
+  }
+  // CAGE INTERACTION: back to the fence — the cage absorbs knockback and holds you up,
+  // but you're trapped in the pocket and flurries stick (EA UFC cage pressure)
+  const defAtFence = nearCage(def);
+  if(wasStumbling && tier<6 && mit>3){
+    // Sumotori topple: any solid touch on broken footing sends them over.
+    // Comic fall — short count, does NOT score against the 3-knockdown rule.
+    def.state='down'; def.downT=1.4+rnd()*0.9; def.stun=Math.max(def.stun,3);
+    def.stunT=Math.max(def.stunT,0.8); def.bal=30;
+    fx.callout('TIMBER!','#ffd76a');
+  } else {
+    def.applyStun(tier, dmin+(dmax-dmin)*rnd());
+  }
+  { const dx=def.px-att.px, dz=def.pz-att.pz, dd=Math.hypot(dx,dz)||1;
+    const kbEff = defAtFence ? kb*0.25 : kb;             // the fence eats the knockback
+    def.px += kbEff*dx/dd; def.pz += kbEff*dz/dd; clampCage(def);
+    if(defAtFence && kb>0.15){ def.drainBalance(3); snd(55,0.12,0.22); } // rattled off the chain-link
+  }
+  rumblePad(def===F1 ? Math.min(0.9, 0.25+mit*0.02) : 0.15, tier>=3?260:110);
+
+  // presentation
+  // presentation: hitstop + directional reaction impulse + camera punch-in
+  { const dx=def.px-att.px, dz=def.pz-att.pz, dd=Math.hypot(dx,dz)||1;
+    hitstop = Math.max(hitstop, blocked? 0.03 : Math.min(0.18, 0.045+mit*0.004) + (tier>=5?0.08:0));
+    def._impulse = { x:dx/dd*mit*0.045, y:(m.zone==='head'?0.10:-0.05)*mit*0.03, z:dz/dd*mit*0.045 };
+    camPunch = Math.min(0.55, camPunch + (blocked?0.03:mit*0.016));
+  }
+  fx.hit(def, m.zone, mit, tier, blocked&&!guardBreak);
+  if(guardBreak)      fx.callout('GUARD BREAK!', '#ff5540');
+  else if(tier===6)   fx.callout('KNOCKOUT!!', '#ff3020');
+  else if(tier===5)   fx.callout('KNOCKDOWN!', '#ff7030');
+  else if(isCounter&&!blocked) fx.callout('COUNTER!', '#f2c14e');
+  else if(blocked)    fx.popup(null);
+  snd(blocked?140:tier>=3?70:100, blocked?0.04:0.09, blocked?0.10:Math.min(0.5,0.15+mit*0.012));
+  if(tier===6) match.finish(att, 'KO');
+  else if(def.kd>=3) match.finish(att, 'TKO');
+  return true;
+}
+
+/* ═══════════════ CHARACTER FORGE (pure logic — UI calls this) ═══════════════ */
+const FORGE_POOL = 300;   // 6 stats × 50 baseline
+const SKILL_TEMPLATES = { // scaled by TECHNIQUE: skill = tmpl × (0.55 + TEC/130)
+  boxing:    {boxing:88, kickboxing:34, headMovement:58, footwork:52},
+  muay_thai: {boxing:56, kickboxing:82, headMovement:56, footwork:66},
+  karate:    {boxing:58, kickboxing:88, headMovement:64, footwork:88},
+  mma:       {boxing:66, kickboxing:62, headMovement:58, footwork:62},
+  wrestling: {boxing:52, kickboxing:32, headMovement:52, footwork:56},
+  bjj:       {boxing:44, kickboxing:36, headMovement:56, footwork:58},
+};
+const SKIN_TONES = [0xF0D5B8, 0xE8C8A0, 0xD8B890, 0xC89A70, 0x9A6B48, 0x6B4630];
+const WC_BY_HEIGHT = h => h<170?'FLYWEIGHT':h<175?'FEATHERWEIGHT':h<181?'LIGHTWEIGHT'
+                        : h<187?'WELTERWEIGHT':h<193?'MIDDLEWEIGHT':'HEAVYWEIGHT';
+
+function forgeFighter(cfg){
+  // cfg: {name, nick, style, height(165-200), skin, POW,SPD,CRD,TGH,CHN,TEC}
+  const tec = 0.55 + cfg.TEC/130, T = SKILL_TEMPLATES[cfg.style];
+  const sk = n => Math.max(20, Math.min(95, Math.round(T[n]*tec)));
+  const h01 = (cfg.height-165)/35;
+  return {
+    id:'custom_'+Date.now().toString(36),
+    name:(cfg.name||'RICKY BALBOA').toUpperCase(),
+    nick:(cfg.nick||'THE PROSPECT').toUpperCase(),
+    wc:WC_BY_HEIGHT(cfg.height), rec:'0-0 · PROSPECT',
+    style:cfg.style, custom:true,
+    STR:cfg.POW, SPD:cfg.SPD, END:cfg.CRD, TGH:cfg.TGH, chin:cfg.CHN, gasT:cfg.CRD,
+    boxing:sk('boxing'), kickboxing:sk('kickboxing'),
+    headMovement:sk('headMovement'), footwork:sk('footwork'),
+    skin:cfg.skin,
+    reachMult: 0.90 + h01*0.20,       // 5'5" jabs at 0.90×, 6'7" at 1.10× — range is real
+    hScale:    0.92 + h01*0.16,       // visual scale
+  };
+}
+
+/* ═══════════════ AI ═══════════════ */
+function aiThink(me, foe, out){
+  const prof = STYLE_AI[me.def.style];
+  const range = Math.hypot(me.px-foe.px, me.pz-foe.pz);
+  out.mv=0; out.lat=0; out.attack=null; out.block=false; out.evade=null;
+  if(me.state!=='idle' && me.state!=='attack') return;
+  // neutral corner: never swing at a downed/rising opponent
+  if(foe.state==='down'||foe.state==='getup'){ if(range<1.6) out.mv=-1; return; }
+
+  // scheduled defensive reaction
+  if(me.ai.react!==null){
+    me.ai.react--;
+    if(me.ai.react<=0){
+      me.ai.react=null;
+      if(foe.phase==='startup'||foe.phase==='active'){
+        const mv=foe.move;
+        if(mv && mv.evade && rnd() < 0.25 + me.def.headMovement*0.004) out.evade=mv.evade;
+        else out.block=true;
+        me.ai.blockHold=0.35;
+      }
+    }
+  }
+  // detect opponent wind-up → schedule reaction (this is why long startups get blocked)
+  if(foe.phase==='startup' && me.ai.react===null && !me.ai.blockHold){
+    me.ai.react = me.reactF + Math.floor(rnd()*4);
+  }
+  if(me.ai.blockHold>0){ me.ai.blockHold-=DT; out.block=true; return; }
+  if(me.stun>=1 && me.stun<=2){ out.block=true; return; }    // buzzed → cover up (arms absorb)
+
+  if(me.gassed()){ // survive
+    if(range<1.6) out.mv=-1;
+    out.block = range<1.3;
+    return;
+  }
+  // range management + cage awareness — target the CLOSER of style preference and
+  // usable strike reach, so no style parks in a dead zone where nothing can land
+  const maxReach = prof.menu.reduce((m2,[id])=>Math.max(m2,MOVES[id].reach),0)*me.reachMult;
+  const pref = Math.min(prof.range, maxReach-0.10);
+  if(range > pref+0.25) out.mv=1;
+  else if(range < pref-0.3) out.mv=-1;
+  const meCaged=nearCage(me), foeCaged=nearCage(foe);
+  if(meCaged && !foeCaged){                     // trapped: circle OFF the fence
+    const tang = (me.px*foe.pz - me.pz*foe.px) > 0 ? 1 : -1;
+    out.lat = tang; out.mv = Math.max(out.mv, 0.4);
+  }
+  // circling: footwork-driven random walk around the opponent
+  me.ai.circT = (me.ai.circT||0) - DT;
+  if(me.ai.circT<=0){
+    me.ai.circ = (rnd()<me.def.footwork/140 ? (rnd()<0.5?-1:1) : 0);
+    me.ai.circT = 0.7 + rnd()*1.2;
+  }
+  out.lat = me.ai.circ||0;
+
+  // offense
+  me.ai.cool -= DT;
+  if(me.ai.cool<=0 && me.canAct()){
+    const openings = (foe.phase==='recovery'||foe.stun>=2||foe.state==='stumble') ? 0.5
+                   : (nearCage(foe)&&!nearCage(me)) ? 0.25 : 0;   // cage pressure: swarm the trapped
+    if(rnd() < prof.aggr + openings){
+      // weighted pick among moves that reach
+      const opts = prof.menu.filter(([id])=> MOVES[id].reach*me.reachMult >= range-0.15);
+      if(opts.length){
+        let tot=opts.reduce((s,[,w])=>s+w,0), r=rnd()*tot, pick=opts[0][0];
+        for(const [id,w] of opts){ if((r-=w)<=0){ pick=id; break; } }
+        out.attack=pick;
+      } else out.mv=1;
+    }
+    me.ai.cool = 0.55 + rnd()*0.7 - me.def.SPD*0.002;
+  }
+}
+
+/* ═══════════════ MATCH ═══════════════ */
+const match = {
+  ROUNDS:3, LEN:99, round:1, t:99, live:false, over:false, rest:0, introT:0,
+  scores:[],
+  start(){ this.round=1; this.t=this.LEN; this.live=false; this.over=false; this.scores=[];
+           this.rest=0; this.beginIntro(); },
+  beginIntro(){ this.introT=1.9; this.live=false; banner('ROUND '+this.round); },
+  update(){
+    if(this.over) return;
+    // sim-time intro (no setTimeout: background-tab throttling can't stall the fight)
+    if(this.introT>0){
+      this.introT-=DT;
+      if(this.introT<=0.7 && !this.live){ banner('FIGHT!'); this.live=true; }
+      if(this.introT<=0) banner(null);
+      if(!this.live) return;
+    }
+    if(this.rest>0){
+      this.rest-=DT;
+      if(this.rest<=0){ this.round++; this.t=this.LEN;
+        F1.roundDmg=0; F2.roundDmg=0;
+        this.beginIntro(); }
+      return;
+    }
+    if(!this.live) return;
+    this.t-=DT;
+    if(this.t<=0){
+      this.scores.push([F1.roundDmg, F2.roundDmg]);
+      if(this.round>=this.ROUNDS){ this.decision(); return; }
+      this.live=false; this.rest=5;
+      banner('END OF ROUND '+this.round);
+      for(const f of [F1,F2]){
+        f.hpCap=Math.min(f.maxHP, f.hpCap+f.maxHP*0.04);          // corners fix a LITTLE permanent damage
+        f.stCap=Math.min(f.maxSt, f.stCap+f.maxSt*0.09);
+        f.st=Math.min(f.stCap, f.st+f.stCap*0.5); f.hp=Math.min(f.hpCap, f.hp+f.hpCap*0.22);
+        const rz={head:0.05,body:0.12,armL:0.16,armR:0.16,legL:0.09,legR:0.09};
+        for(const z in rz){ f.zone[z]=Math.min(f.zoneMax[z], f.zone[z]+f.zoneMax[z]*rz[z]); f.vuln[z]=0; }
+        f.stun=0; f.stunT=0; if(f.state!=='ko')f.state='idle'; f.interrupt(); }
+    }
+  },
+  decision(){
+    let a=0,b=0;
+    for(const [d1,d2] of this.scores){ if(d1>d2*1.05)a++; else if(d2>d1*1.05)b++; }
+    const w = a===b ? null : (a>b?F1:F2);
+    this.finish(w, 'DECISION');
+  },
+  finish(winner, how){
+    if(this.over) return;
+    this.over=true; this.live=false;
+    snd(60,0.4,0.5);
+    setTimeout(()=>{
+      banner(winner? winner.def.name+' WINS' : 'DRAW');
+      const label = how==='KO' ? 'KNOCKOUT' : how==='TKO' ? 'TKO \u2014 3 KNOCKDOWNS' : 'JUDGES\u2019 DECISION';
+      sub(label + '  \u00B7  PRESS R TO REMATCH');
+    }, how==='DECISION'?300:900);
+  }
+};
+
+/* ═══════════════ RENDER (Three.js, VF flat-shade) ═══════════════ */
+let scene,camera,renderer,rig1,rig2,shake=0;
+const bloodPool=[];
+
+function boxM(w,h,d,c){ return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshLambertMaterial({color:c, flatShading:true})); }
+
+function buildRig(def, glove){
+  const g=new THREE.Group(); g.rotation.order='YXZ';
+  if(def.hScale) g.scale.set(def.hScale,def.hScale,def.hScale);
+  const skin=def.skin, shorts=glove;
+  const pelvis=new THREE.Group(); pelvis.position.y=0.95; g.add(pelvis);
+  const hips=boxM(0.34,0.18,0.24,shorts); pelvis.add(hips);
+  const torso=new THREE.Group(); torso.position.y=0.12; pelvis.add(torso);
+  const chest=boxM(0.40,0.44,0.26,skin); chest.position.y=0.24; torso.add(chest);
+  const trunk=boxM(0.36,0.16,0.25,shorts); trunk.position.y=-0.02; torso.add(trunk);
+  const neck=boxM(0.10,0.08,0.10,skin); neck.position.y=0.50; torso.add(neck);
+  const headG=new THREE.Group(); headG.position.y=0.60; torso.add(headG);
+  const head=boxM(0.20,0.22,0.22,skin); head.position.y=0.09; headG.add(head);
+  const brow=boxM(0.21,0.05,0.06,0x1a1410); brow.position.set(0,0.13,0.09); headG.add(brow);
+  function arm(sx){
+    const sh=new THREE.Group(); sh.position.set(sx*0.24,0.42,0); torso.add(sh);
+    const up=boxM(0.11,0.34,0.11,skin); up.position.y=-0.17; sh.add(up);
+    const el=new THREE.Group(); el.position.y=-0.34; sh.add(el);
+    const fo=boxM(0.09,0.28,0.09,skin); fo.position.y=-0.14; el.add(fo);
+    const gl=boxM(0.13,0.13,0.13,glove); gl.position.y=-0.32; el.add(gl);
+    return {sh,el,gl,side:sx};
+  }
+  function leg(sx){
+    const hip=new THREE.Group(); hip.position.set(sx*0.11,-0.06,0); pelvis.add(hip);
+    const th=boxM(0.14,0.38,0.14,shorts); th.position.y=-0.19; hip.add(th);
+    const kn=new THREE.Group(); kn.position.y=-0.40; hip.add(kn);
+    const sn=boxM(0.11,0.36,0.11,skin); sn.position.y=-0.18; kn.add(sn);
+    const ft=boxM(0.12,0.07,0.24,0x222222); ft.position.set(0,-0.40,0.05); kn.add(ft);
+    return {hip,kn,side:sx};
+  }
+  const rig={g,pelvis,torso,headG,
+    armL:arm(-1), armR:arm(1), legL:leg(-1), legR:leg(1),
+    spring:{ox:0,oy:0,oz:0,vx:0,vy:0,vz:0}};
+  return rig;
+}
+
+/* pose interpolation: guard → strike keyposes, driven directly by sim phase */
+function easeOut(t){ return 1-Math.pow(1-t,2.2); }
+/* ═══════ IK-DRIVEN POSING (pure math — harness-verifiable) ═══════
+   Two-bone analytic IK: strikes target the OPPONENT'S actual head/body/leg
+   position through per-strike bezier arcs (anticipation → snap → follow-
+   through), so a hook arcs, an uppercut rises, and every punch visibly
+   lands on — and tracks — the target, slips included.
+   Hit reactions are a spring-damper layer kicked along the true impact
+   vector (physical-animation-lite, same idea as an additive simulated
+   layer over a kinematic pose).                                        */
+const AL1=0.34, AL2=0.32, LL1=0.40, LL2=0.42;   // arm/leg bone lengths
+
+function rotVZ(v,a){ const c=Math.cos(a),s=Math.sin(a); return {x:v.x*c-v.y*s, y:v.x*s+v.y*c, z:v.z}; }
+function vSub(a,b){ return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}; }
+function vCross(a,b){ return {x:a.y*b.z-a.z*b.y, y:a.z*b.x-a.x*b.z, z:a.x*b.y-a.y*b.x}; }
+function vDot(a,b){ return a.x*b.x+a.y*b.y+a.z*b.z; }
+function vNorm(v){ const l=Math.hypot(v.x,v.y,v.z)||1; return {x:v.x/l,y:v.y/l,z:v.z/l}; }
+function vRotAxis(v,ax,ang){ // Rodrigues
+  const c=Math.cos(ang), s=Math.sin(ang), k=ax;
+  const kxv=vCross(k,v), kdv=vDot(k,v);
+  return {x:v.x*c+kxv.x*s+k.x*kdv*(1-c), y:v.y*c+kxv.y*s+k.y*kdv*(1-c), z:v.z*c+kxv.z*s+k.z*kdv*(1-c)};
+}
+const _cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* solve chain S→T with bones L1,L2; pole picks the bend plane.
+   returns u (upper dir), f (fore dir), n (hinge axis), bend (signed elbow) */
+function ik2(S, T, L1, L2, pole){
+  let d=vSub(T,S); let dl=Math.hypot(d.x,d.y,d.z);
+  dl=_cl(dl, Math.abs(L1-L2)+1e-3, L1+L2-1e-3);
+  const dir=vNorm(d);
+  let n=vCross(dir,pole); const nl=Math.hypot(n.x,n.y,n.z);
+  n = nl<1e-4 ? {x:1,y:0,z:0} : {x:n.x/nl,y:n.y/nl,z:n.z/nl};
+  const a1=Math.acos(_cl((L1*L1+dl*dl-L2*L2)/(2*L1*dl),-1,1));
+  const a2=Math.acos(_cl((L2*L2+dl*dl-L1*L1)/(2*L2*dl),-1,1));
+  const u=vRotAxis(dir,n, a1), f=vRotAxis(dir,n,-a2);
+  const uxn=vCross(u,n);
+  const bend=Math.atan2(-vDot(f,uxn), vDot(u,f));
+  return {u,f,n,bend};
+}
+/* basis (columns X,Y,Z) → euler XYZ matching THREE's convention */
+function basisToEuler(X,Y,Z,rot){
+  const m13=Z.x, m23=Z.y, m33=Z.z, m12=Y.x, m11=X.x, m22=Y.y, m32=Y.z;
+  const y=Math.asin(_cl(m13,-1,1));
+  if(Math.abs(m13)<0.9999) rot.set(Math.atan2(-m23,m33), y, Math.atan2(-m12,m11));
+  else rot.set(Math.atan2(m32,m22), y, 0);
+}
+/* apply IK solution to a shoulder/hip group + elbow/knee group */
+function applyChain(shGroup, elGroup, sol){
+  const X=sol.n, Y={x:-sol.u.x,y:-sol.u.y,z:-sol.u.z}, Z=vCross(sol.u,sol.n);
+  basisToEuler(X,Y,Z, shGroup.rotation);
+  elGroup.rotation.set(sol.bend,0,0);
+}
+/* reconstruct tip for verification: S + L1·u + L2·f */
+function ikTip(S,sol,L1,L2){ return {x:S.x+L1*sol.u.x+L2*sol.f.x, y:S.y+L1*sol.u.y+L2*sol.f.y, z:S.z+L1*sol.u.z+L2*sol.f.z}; }
+
+/* strike path config: bezier control offsets give each strike its arc identity */
+const PATH_CFG = {
+  straight:{cx:0.00, cy: 0.04, tOff:{x:0,y:0,z:0}},
+  hook:    {cx:0.65, cy: 0.05, tOff:{x:0,y:0,z:-0.02}},
+  upper:   {cx:0.10, cy:-0.50, tOff:{x:0,y:-0.04,z:0}},
+  over:    {cx:0.25, cy: 0.55, tOff:{x:0,y:0.02,z:0}},
+  push:    {cx:0.00, cy:-0.10, tOff:{x:0,y:0,z:0}},
+  lowkick: {cx:0.70, cy: 0.10, tOff:{x:0,y:0,z:0}},
+  round:   {cx:0.90, cy: 0.15, tOff:{x:0,y:0,z:0}},
+  high:    {cx:0.75, cy: 0.30, tOff:{x:0,y:0,z:0}},
+};
+function easeInOut(t){ return t*t*(3-2*t); }
+function easeOutC(t){ return 1-Math.pow(1-t,3); }
+
+/* opponent target point in WORLD space, from sim state (tracks slips/ducks) */
+function foeTargetWorld(foe, zone){
+  const hS=foe.def.hScale||1;
+  const px=Math.cos(foe.yaw), pz=-Math.sin(foe.yaw);
+  const x=foe.px+px*foe.slipOff, z=foe.pz+pz*foe.slipOff;
+  let y = zone==='head' ? 1.58 : zone==='body' ? 1.02 : 0.45;
+  if(zone==='head' && foe.ev && foe.ev.type==='duck') y-=0.30;
+  if(foe.stun>=3) y-=0.08;
+  return {x, y:y*hS, z};
+}
+function worldToRoot(s, w){ // into fighter root space (facing +Z)
+  const dx=w.x-s.px, dz=w.z-s.pz, c=Math.cos(-s.yaw), sn=Math.sin(-s.yaw);
+  return {x:dx*c+dz*sn, y:w.y, z:-dx*sn+dz*c};
+}
+function rootToTorso(P, v){ // through pelvis+torso transform (inverse euler XYZ)
+  let p={x:v.x, y:v.y-(P.pelvis.position.y+0.12), z:v.z};
+  const r=P.torso.rotation;
+  p=rotVX(p,-r.x); p=rotVY(p,-r.y); p=rotVZ(p,-r.z);
+  return p;
+}
+
+let renderDt=1/60;
+function poseRig(rig, sim, foe){
+  const P=rig, s=sim;
+  let torsoRX=0.06, torsoRY=0.26, pelvisY=0.95, headRX=0, headRZ=0, gRZ=0, leanZ=0;
+  // guard targets (root space) — bladed stance, lead hand high & forward
+  const guard={ L:{x:-0.17,y:1.46,z:0.38}, R:{x:0.15,y:1.40,z:0.24} };
+  const armT={ L:{...guard.L}, R:{...guard.R} };
+  let kickTarget=null, kickLeg=null;
+  const FK={hipL:{x:0,z:0.04},knL:0.10,hipR:{x:0,z:-0.04},knR:0.10};
+
+  /* ── strike overlay: bezier path toward the opponent's REAL position ── */
+  if(s.phase!=='none' && s.move && foe){
+    const m=s.move, cfg=PATH_CFG[m.kind], p=1-s.pf/Math.max(1,s.pfMax);
+    const rear = m.limb==='rear'||m.limb==='legRear';
+    const side = rear? 1 : -1;
+    // anticipation → snap → follow-through
+    let r;
+    if(s.phase==='startup') r = p<0.40 ? -Math.sin(p/0.40*Math.PI/2)*1.0
+                                       : easeInOut((p-0.40)/0.60)*0.97;   // VF2: long readable wind-up, late snap
+    else if(s.phase==='active') r = 1;
+    else r = 1-easeOutC(p);
+    const tw=foeTargetWorld(foe, m.zone);
+    const T=worldToRoot(s, tw);
+    T.x+=cfg.tOff.x; T.y+=cfg.tOff.y; T.z+=cfg.tOff.z;
+    const isKick = m.limb==='legRear';
+    const start = isKick ? {x:0.12,y:0.06,z:0.05} : {...guard[rear?'R':'L']};
+    const chamber = isKick ? {x:0.10,y:1.00,z:0.30} : {x:side*0.20,y:1.30,z:0.10};
+    let handT;
+    if(r<0){ const q=-r; handT={x:start.x+(chamber.x-start.x)*q, y:start.y+(chamber.y-start.y)*q, z:start.z+(chamber.z-start.z)*q}; }
+    else{
+      const c={x:(start.x+T.x)/2 + side*cfg.cx, y:(start.y+T.y)/2 + cfg.cy, z:(start.z+T.z)/2};
+      const q=r, iq=1-q; // quadratic bezier
+      handT={x:iq*iq*start.x+2*iq*q*c.x+q*q*T.x,
+             y:iq*iq*start.y+2*iq*q*c.y+q*q*T.y,
+             z:iq*iq*start.z+2*iq*q*c.z+q*q*T.z};
+    }
+    // hips drive power: torso rotates INTO the strike, over-rotating at follow-through
+    const pow = s.phase==='recovery' ? Math.min(1.12, (1-p)*1.12+p*0.4) : Math.max(0,r);
+    if(m.kind==='straight') torsoRY = 0.26 - side*0.62*pow;
+    if(m.kind==='hook')     torsoRY = 0.26 - side*0.95*pow;
+    if(m.kind==='over'){    torsoRY = 0.26 - side*0.70*pow; torsoRX = 0.06+0.28*pow; }
+    if(m.kind==='upper'){   torsoRX = 0.06+0.30*pow; pelvisY = 0.95-0.08*pow; }
+    if(isKick){ torsoRY = 0.26 - 1.05*pow; gRZ = 0.14*pow; torsoRX = 0.06-(m.kind==='high'?0.30:0.08)*pow;
+                kickTarget=handT; kickLeg='R'; FK.knL=0.28; }
+    leanZ = (rear?0.17:0.09)*Math.max(0,r);
+    if(!isKick){ if(rear) armT.R=handT; else armT.L=handT; }
+  }
+
+  /* ── defense: instant poses ── */
+  if(s.block){ armT.L={x:-0.11,y:1.56,z:0.30}; armT.R={x:0.11,y:1.56,z:0.30}; torsoRX=0.14; }
+  if(s.ev){
+    const a=s.ev.stage==='active'?1:0.5;
+    if(s.ev.type==='duck'){ pelvisY=0.95-0.30*a; torsoRX=0.50*a; }
+    else { torsoRY+=0.15; s.slipOff += ((s.ev.side||1)*0.28*a - s.slipOff)*0.5; }
+  } else if(s.state!=='stumble') s.slipOff*=0.7;
+
+  /* ── stun / stumble / gassed ── */
+  if(s.stun>0 && s.state!=='down'){
+    headRX=-0.10*s.stun; headRZ=Math.sin(s.wobble)*0.1*s.stun;
+    if(s.stun>=3){ armT.L={x:-0.30,y:1.02,z:0.14}; armT.R={x:0.30,y:1.02,z:0.14};
+      torsoRX=-0.15; s.slipOff=Math.sin(s.wobble*1.3)*0.06*s.stun; }
+  }
+  if(s.state==='stumble'){ // windmilling for footing (IK-driven arm circles)
+    const w=s.wobble;
+    armT.L={x:-0.45, y:1.30+Math.sin(w*2.6)*0.45, z:0.20+Math.cos(w*2.6)*0.40};
+    armT.R={x: 0.45, y:1.30+Math.sin(w*2.6+Math.PI)*0.45, z:0.20+Math.cos(w*2.6+Math.PI)*0.40};
+    torsoRX=0.16+Math.sin(w*1.7)*0.22; torsoRY=0.26+Math.sin(w*1.1)*0.30;
+    headRZ=Math.sin(w*2)*0.15; pelvisY=0.88+Math.sin(w*3.1)*0.04;
+    s.slipOff=Math.sin(w*1.9)*0.16;
+    FK.hipL.x=Math.sin(w*2.6)*0.5; FK.hipR.x=Math.sin(w*2.6+Math.PI)*0.5; FK.knL=0.4; FK.knR=0.4;
+  }
+  if(s.gassed() && s.state==='idle'){ torsoRX+=0.12; armT.L.y-=0.14; armT.R.y-=0.14; }
+
+  /* ── down / getup — flat on the mat, or slumped seated against the fence ── */
+  let lay=0;
+  if(s.state==='down'||s.state==='ko') lay=1;
+  if(s.state==='getup') lay=Math.max(0,s.getupT/0.8);
+  if(s.seated && lay>0){
+    rig.g.rotation.x=-0.42*lay;                 // back against the chain-link
+    rig.g.position.y=-0.52*lay;
+    FK.hipL.x=-1.35*lay; FK.hipR.x=-1.30*lay;   // legs out in front
+    FK.knL=0.25; FK.knR=0.35;
+    armT.L={x:-0.34,y:0.55,z:0.15}; armT.R={x:0.34,y:0.55,z:0.15}; // arms slack at the sides
+    headRX=0.35*lay;
+  } else {
+    rig.g.rotation.x=-lay*Math.PI/2*0.96;
+    rig.g.position.y=-lay*0.55;
+  }
+
+  /* ── impact springs: physical-animation-lite reaction layer ── */
+  const sp=rig.spring;
+  if(s._impulse){
+    const im=worldToRoot(s, {x:s.px+s._impulse.x, y:1.3+s._impulse.y, z:s.pz+s._impulse.z});
+    sp.vx+=im.x*6.5; sp.vy+=(im.y-1.3)*4; sp.vz+=im.z*6.5; s._impulse=null;
+  }
+  const k=185, c=13, rd=Math.min(renderDt,0.05);
+  sp.vx+=(-k*sp.ox-c*sp.vx)*rd; sp.vy+=(-k*sp.oy-c*sp.vy)*rd; sp.vz+=(-k*sp.oz-c*sp.vz)*rd;
+  sp.ox+=sp.vx*rd; sp.oy+=sp.vy*rd; sp.oz+=sp.vz*rd;
+  torsoRY += sp.ox*0.55; torsoRX += -sp.oz*0.7; gRZ += sp.ox*0.25;
+  headRX  += -sp.oz*1.5; headRZ  += sp.ox*1.3;
+
+  /* ── walk cycle (legs FK when not kicking) ── */
+  const spd2=Math.hypot(s.vx,s.vz);
+  if(spd2>0.12 && s.phase==='none' && !lay && s.state!=='stumble'){
+    const w=Math.sin(s.walkPhase), amp=Math.min(1,spd2)*0.26;
+    FK.hipL.x+=w*amp; FK.hipR.x+=-w*amp;
+    FK.knL=0.12+Math.max(0,-w)*0.45; FK.knR=0.12+Math.max(0,w)*0.45;
+    torsoRX+=0.05*Math.min(1,spd2);
+  }
+
+  /* ── commit skeleton ── */
+  P.pelvis.position.y=pelvisY;
+  P.torso.rotation.set(torsoRX,torsoRY,gRZ);
+  P.headG.rotation.set(headRX,0,headRZ);
+  P.headG.position.set(sp.ox*0.10, 0.60+sp.oy*0.05, sp.oz*0.10);
+  // arms: ALWAYS IK — guard, block, strikes, stumble windmill all flow through the solver
+  for(const sideKey of ['L','R']){
+    const armRig=sideKey==='L'?P.armL:P.armR;
+    const S={x:armRig.side*0.24,y:0.42,z:0};
+    const T=rootToTorso(P, armT[sideKey]);
+    const pole={x:armRig.side*0.6,y:-0.8,z:0.15};
+    applyChain(armRig.sh, armRig.el, ik2(S,T,AL1,AL2,pole));
+  }
+  // legs: IK for the kicking leg, FK walk cycle otherwise
+  if(kickTarget && kickLeg==='R'){
+    const S={x:0.11,y:-0.06,z:0};
+    const T={x:kickTarget.x, y:kickTarget.y-P.pelvis.position.y, z:kickTarget.z};
+    applyChain(P.legR.hip, P.legR.kn, ik2(S,T,LL1,LL2,{x:0.15,y:0.35,z:1}));
+    P.legL.hip.rotation.set(FK.hipL.x,0,FK.hipL.z); P.legL.kn.rotation.set(FK.knL,0,0);
+  } else {
+    P.legL.hip.rotation.set(FK.hipL.x,0,FK.hipL.z); P.legL.kn.rotation.set(FK.knL,0,0);
+    P.legR.hip.rotation.set(FK.hipR.x,0,FK.hipR.z); P.legR.kn.rotation.set(FK.knR,0,0);
+  }
+  if(s.state==='idle' && s.phase==='none' && !lay && spd2<=0.12)
+    P.pelvis.position.y = 0.95 + Math.sin(perf*4 + s.dir)*0.015;
+  // world transform: position + slip offset + strike lean along facing
+  const perpX=Math.cos(s.yaw), perpZ=-Math.sin(s.yaw);
+  const fwdX=Math.sin(s.yaw), fwdZ=Math.cos(s.yaw);
+  rig.g.position.x = s.px + perpX*s.slipOff + fwdX*leanZ;
+  rig.g.position.z = s.pz + perpZ*s.slipOff + fwdZ*leanZ;
+  rig.g.rotation.y = s.yaw;
+}
+
+function buildArena(){
+  scene.background=new THREE.Color(0x10101e);
+  scene.fog=new THREE.Fog(0x10101e, 10, 26);
+  const hemi=new THREE.HemisphereLight(0xcfd8ff,0x1a1626,0.9); scene.add(hemi);
+  const key=new THREE.DirectionalLight(0xfff2dd,0.9); key.position.set(3,8,5); scene.add(key);
+  // mat
+  const mat=new THREE.Mesh(new THREE.CylinderGeometry(4.9,4.9,0.12,8),
+    new THREE.MeshLambertMaterial({color:0x3a4152,flatShading:true}));
+  mat.position.y=-0.06; scene.add(mat);
+  const logo=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,0.13,8),
+    new THREE.MeshLambertMaterial({color:0x8a2620,flatShading:true}));
+  logo.position.y=-0.055; scene.add(logo);
+  // ── THE OCTAGON: chain-link diamond mesh, padded rail, post pads, apron ──
+  const wire=new THREE.LineBasicMaterial({color:0x66718c,transparent:true,opacity:0.5});
+  const FR=4.9, FH=1.85;
+  for(let i=0;i<8;i++){
+    const a0=i/8*Math.PI*2+Math.PI/8, a1=(i+1)/8*Math.PI*2+Math.PI/8;
+    const p0=[Math.cos(a0)*FR,Math.sin(a0)*FR], p1=[Math.cos(a1)*FR,Math.sin(a1)*FR];
+    // padded post: dark core + black vinyl pad
+    const post=boxM(0.14,2.05,0.14,0x22262f); post.position.set(p0[0],0.98,p0[1]); scene.add(post);
+    const pad=boxM(0.24,1.5,0.24,0x101318); pad.position.set(p0[0],0.95,p0[1]); scene.add(pad);
+    // chain-link: diamond lattice — both diagonals of each fence cell
+    const pts=[], NU=8, NY=4;
+    const at=(u,y)=>new THREE.Vector3(p0[0]+(p1[0]-p0[0])*u, y, p0[1]+(p1[1]-p0[1])*u);
+    for(let cu=0;cu<NU;cu++)for(let cy=0;cy<NY;cy++){
+      const u0=cu/NU, u1=(cu+1)/NU, y0=0.28+cy/NY*(FH-0.28), y1=0.28+(cy+1)/NY*(FH-0.28);
+      pts.push(at(u0,y0), at(u1,y1));
+      pts.push(at(u1,y0), at(u0,y1));
+    }
+    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),wire));
+    // padded top rail (UFC red vinyl)
+    const mx=(p0[0]+p1[0])/2, mz=(p0[1]+p1[1])/2, len=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]);
+    const rail=boxM(len,0.14,0.16,0x8a2620); rail.position.set(mx,FH+0.05,mz);
+    rail.lookAt(0,FH+0.05,0); scene.add(rail);
+    // lower kick pad strip
+    const skirt=boxM(len,0.28,0.06,0x14161d); skirt.position.set(mx,0.14,mz);
+    skirt.lookAt(0,0.14,0); scene.add(skirt);
+  }
+  // apron: dark walkway ring outside the fence
+  const apron=new THREE.Mesh(new THREE.CylinderGeometry(6.4,6.4,0.10,8),
+    new THREE.MeshLambertMaterial({color:0x1a1e2a,flatShading:true}));
+  apron.position.y=-0.08; scene.add(apron);
+  // crowd billboards: rings of dark blocks with speckles
+  for(let r=0;r<3;r++){
+    for(let i=0;i<26;i++){
+      const a=i/26*Math.PI*2 + r*0.12, rad=7.5+r*2.2;
+      const b=boxM(1.6,1.2+r*0.7,0.3, r%2?0x181c2c:0x1d2236);
+      b.position.set(Math.cos(a)*rad, 0.7+r*0.9, Math.sin(a)*rad);
+      b.lookAt(0,b.position.y,0); scene.add(b);
+      if(i%3===0){ const d=boxM(0.2,0.2,0.05,[0xd43a2f,0x2f5fd4,0xf2c14e][i%3===0?(i/3|0)%3:0]);
+        d.position.set(Math.cos(a)*(rad-0.2), 1.0+r*0.9, Math.sin(a)*(rad-0.2));
+        d.lookAt(0,d.position.y,0); scene.add(d); }
+    }
+  }
+}
+
+/* fx: sparks, blood, shake, popups */
+const fx={
+  hit(defSim, zone, dmg, tier, blocked){
+    shake = Math.min(0.35, (blocked?0.03:0.06) + dmg*0.008 + (tier>=5?0.2:0));
+    if(blocked) return;
+    const y = zone==='head'?1.65 : zone==='body'?1.1 : 0.5;
+    for(let i=0;i<Math.min(14,3+dmg*0.5);i++){
+      let b=bloodPool.find(o=>!o.userData.live);
+      if(!b){ b=boxM(0.045,0.045,0.045,0xb01818); scene.add(b); bloodPool.push(b); }
+      b.userData={live:0.6+rnd()*0.3, vx:(rnd()-0.5)*2.4, vy:1.5+rnd()*2, vz:(rnd()-0.5)*2.4};
+      b.position.set(defSim.px, y, defSim.pz); b.visible=true;
+    }
+  },
+  callout(txt,color){
+    const el=document.getElementById('callout');
+    el.textContent=txt; el.style.color=color||'var(--gold)';
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  },
+  popup(){},
+};
+function stepFx(){
+  for(const b of bloodPool){
+    const u=b.userData; if(!u||!u.live){ b.visible=false; continue; }
+    u.live-=DT; if(u.live<=0){ u.live=0; b.visible=false; continue; }
+    u.vy-=9.8*DT; b.position.x+=u.vx*DT; b.position.y+=u.vy*DT; b.position.z+=u.vz*DT;
+    if(b.position.y<0.03){ b.position.y=0.03; u.vy=0; u.vx*=0.8; u.vz*=0.8; }
+  }
+}
+
+/* ── minimal WebAudio thuds ── */
+let AC=null;
+function snd(freq,at,vol){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type='triangle'; o.frequency.setValueAtTime(freq,AC.currentTime);
+    o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*0.4),AC.currentTime+at+0.08);
+    g.gain.setValueAtTime(vol,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+at+0.12);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+at+0.15);
+  }catch(e){}
+}
+
+/* ═══════════════ GAME SHELL ═══════════════ */
+let F1=null,F2=null, p1def=null, perf=0, humanControlled=true;
+const keys={};
+addEventListener('keydown',e=>{
+  if(e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return; // typing in the forge
+  keys[e.code]=true;
+  if(e.code==='Space'||e.code.startsWith('Arrow'))e.preventDefault();
+  if(e.code==='Escape'){
+    const ed=document.getElementById('editor');
+    if(ed.style.display==='flex'){ ed.style.display='none'; }
+    else if(F1) showSelect();
+    else if(document.getElementById('select').style.display!=='none') showMenu();
+  }
+  if(e.code==='KeyH'){ const h=document.getElementById('help'); h.style.display=h.style.display==='none'?'':'none'; }
+  if(e.code==='KeyT'){ humanControlled=!humanControlled; fx.callout(humanControlled?'PLAYER CONTROL':'CPU CONTROL','#9fe3ff'); }
+  if(e.code==='KeyR' && match.over) startFight(F1.def, F2.def);
+});
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+addEventListener('gamepadconnected',()=>fx.callout('CONTROLLER CONNECTED','#9fe3ff'));
+
+const ATTACK_KEYS={KeyJ:'jab',KeyK:'cross',KeyU:'hook',KeyI:'uppercut',KeyO:'overhand',
+                   KeyV:'front_kick',KeyN:'leg_kick',KeyM:'roundhouse',Comma:'head_kick'};
+const pressed={};
+function humanInput(me,out){
+  out.mv=(keys.KeyD||keys.ArrowUp?1:0)-(keys.KeyA||keys.ArrowDown?1:0);   // toward / away
+  out.lat=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0);                     // circle
+  out.block=!!keys.Space;
+  out.evade=null; out.attack=null;
+  if(keys.KeyQ && !pressed.KeyQ){ out.evade='slip'; me._slipSide=-1; }
+  if(keys.KeyE && !pressed.KeyE){ out.evade='slip'; me._slipSide=1; }
+  if(keys.KeyS && !pressed.KeyS){ out.evade='duck'; }
+  for(const k in ATTACK_KEYS) if(keys[k] && !pressed[k]) out.attack=ATTACK_KEYS[k];
+  for(const k of ['KeyQ','KeyE','KeyS',...Object.keys(ATTACK_KEYS)]) pressed[k]=!!keys[k];
+  padInput(me,out);                                                       // controller merges/overrides
+}
+
+/* ── gamepad (standard mapping) ──
+   LS move · RS flick = slip/duck (instant) · LT hold = block (instant)
+   X jab · Y cross · A hook · B uppercut · RB leg kick · RT roundhouse
+   LB modifier: LB+Y overhand · LB+B head kick · LB+A teep · START rematch */
+let navPad=null, padBlocked=false; const padPrev={};
+function rumblePad(mag,dur){
+  if(padBlocked) return;
+  try{ if(navPad&&navPad.vibrationActuator)
+    navPad.vibrationActuator.playEffect('dual-rumble',{duration:dur||120,strongMagnitude:mag,weakMagnitude:mag*0.55});
+  }catch(e){}
+}
+function padInput(me,out){
+  if(padBlocked || typeof navigator==='undefined' || !navigator.getGamepads) return;
+  let gp=null;
+  try{ gp=navigator.getGamepads()[0]; }
+  catch(e){ padBlocked=true; return; }   // sandboxed iframe: permissions policy denies gamepad — keyboard still works
+  navPad=gp||navPad; if(!gp) return;
+  const dz=v=>Math.abs(v)>0.18?v:0;
+  const sy=dz(-(gp.axes[1]||0)), sx=dz(gp.axes[0]||0);
+  if(sx||sy){ out.mv=sy; out.lat=sx; }                       // analog footwork
+  const down=i=>!!(gp.buttons[i]&&(gp.buttons[i].pressed||gp.buttons[i].value>0.3));
+  const edge=i=>{ const p=down(i), was=padPrev[i]; padPrev[i]=p; return p&&!was; };
+  if(down(6)) out.block=true;                                // LT — instant guard
+  const rx=gp.axes[2]||0, ry=gp.axes[3]||0;                  // RS — instant head movement
+  if(!padPrev.rs){
+    if(Math.abs(rx)>0.55){ out.evade='slip'; me._slipSide=rx>0?1:-1; padPrev.rs=true; }
+    else if(ry>0.55){ out.evade='duck'; padPrev.rs=true; }
+  } else if(Math.abs(rx)<0.4 && ry<0.4) padPrev.rs=false;
+  const mod=down(4);                                         // LB — power modifier
+  if(edge(2)) out.attack='jab';
+  if(edge(3)) out.attack=mod?'overhand':'cross';
+  if(edge(0)) out.attack=mod?'front_kick':'hook';
+  if(edge(1)) out.attack=mod?'head_kick':'uppercut';
+  if(edge(5)) out.attack='leg_kick';
+  if(edge(7)) out.attack='roundhouse';
+  if(edge(9) && match.over) startFight(F1.def,F2.def);       // START — rematch
+}
+
+const in1={}, in2={};
+let hitstop=0, camPunch=0;
+function fixedStep(){
+  if(!F1) return;
+  if(hitstop>0){ hitstop-=DT; stepFx(); return; }  // freeze at the point of collision — particles continue
+  match.update();
+  if(match.live && !match.over){
+    if(humanControlled) humanInput(F1,in1); else aiThink(F1,F2,in1);
+    aiThink(F2,F1,in2);
+  } else { in1.mv=0;in1.attack=null;in1.block=false;in1.evade=null;
+           in2.mv=0;in2.attack=null;in2.block=false;in2.evade=null; }
+  F1.update(in1,F2); F2.update(in2,F1);
+  separate();
+  if(F1.ev && F1._slipSide) F1.ev.side=F1._slipSide;
+  if(F2.ev && F2._slipSide) F2.ev.side=F2._slipSide;
+  stepFx();
+}
+
+function hud(){
+  if(!F1) return;
+  const pct=(v,m)=>Math.max(0,Math.min(100,v/m*100)).toFixed(1)+'%';
+  document.getElementById('hp1').style.width=pct(F1.hp,F1.maxHP);
+  document.getElementById('hp2').style.width=pct(F2.hp,F2.maxHP);
+  document.getElementById('st1').style.width=pct(F1.st,F1.maxSt);
+  document.getElementById('st2').style.width=pct(F2.st,F2.maxSt);
+  document.getElementById('bl1').style.width=pct(F1.bal,100);
+  document.getElementById('bl2').style.width=pct(F2.bal,100);
+  document.getElementById('hpb1').classList.toggle('low',F1.hp/F1.maxHP<0.3);
+  document.getElementById('hpb2').classList.toggle('low',F2.hp/F2.maxHP<0.3);
+  for(const [f,i] of [[F1,'1'],[F2,'2']]){
+    document.getElementById('hpx'+i).style.width=((1-f.hpCap/f.maxHP)*100).toFixed(1)+'%';
+    document.getElementById('stx'+i).style.width=((1-f.stCap/f.maxSt)*100).toFixed(1)+'%';
+    for(const z of ['head','body','armL','armR','legL','legR']){
+      const el=document.getElementById('z'+z+i), frac=f.zoneFrac(z);
+      el.style.width=(frac*100).toFixed(1)+'%';
+      el.style.background='hsl('+Math.round(frac*115)+',72%,48%)';
+      el.parentElement.style.borderColor = f.vuln[z]>0 ? 'var(--gold)' : 'var(--line)';
+    }
+  }
+  for(const [f,id] of [[F1,'s1'],[F2,'s2']]){
+    const el=document.getElementById(id); let t='';
+    if(f.state==='ko') t='OUT COLD';
+    else if(f.state==='down') t='DOWN!';
+    else if(f.state==='stumble') t='STUMBLING!';
+    else if(f.stun>=3) t='STUNNED';
+    else if(f.stun===2) t='ROCKED';
+    else if(f.gassed()) t='GASSED';
+    else if(f.zoneFrac('legL')<0.30) t='LEFT LEG COMPROMISED';
+    else if(f.zoneFrac('legR')<0.30) t='RIGHT LEG COMPROMISED';
+    else if(f.zoneFrac('arms')<0.35) t='GUARD FAILING';
+    else if(f.zoneFrac('body')<0.35) t='BODY BROKEN';
+    el.textContent=t; el.className='status'+(t?' warn':'');
+  }
+  const m=Math.floor(Math.max(0,match.t)/60), s=Math.floor(Math.max(0,match.t)%60);
+  document.getElementById('clock').textContent=m+':'+String(s).padStart(2,'0');
+  document.getElementById('round').textContent = match.rest>0?'REST':'ROUND '+match.round;
+}
+function banner(t){ const b=document.getElementById('banner');
+  b.style.display=t?'block':'none'; if(t)b.textContent=t;
+  if(!t) document.getElementById('subbanner').style.display='none'; }
+function sub(t){ const b=document.getElementById('subbanner'); b.style.display='block'; b.textContent=t; }
+
+/* camera: stays perpendicular to the fight line — orbits as the fighters circle */
+function updateCamera(){
+  if(!F1) return;
+  const mx=(F1.px+F2.px)/2, mz=(F1.pz+F2.pz)/2;
+  const ax=F2.px-F1.px, az=F2.pz-F1.pz, al=Math.hypot(ax,az)||1;
+  let px=-az/al, pz=ax/al;                    // perpendicular to the line between fighters
+  // remain on the same side — no snapping through the fighters
+  if(px*(camera.position.x-mx) + pz*(camera.position.z-mz) < 0){ px=-px; pz=-pz; }
+  const d=3.4+al*0.55 - camPunch*0.9;
+  camPunch*=0.90;
+  camera.position.x += (mx+px*d - camera.position.x)*0.06;
+  camera.position.y += (1.9     - camera.position.y)*0.06;
+  camera.position.z += (mz+pz*d - camera.position.z)*0.06;
+  if(shake>0){ camera.position.x+=(rnd()-0.5)*shake; camera.position.y+=(rnd()-0.5)*shake;
+    shake=Math.max(0,shake-6*DT*shake-0.002); }
+  camera.lookAt(mx,1.15,mz);
+}
+
+/* ── boot ── */
+function init3D(){
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,60);
+  camera.position.set(0,1.9,5);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  document.getElementById('stage').appendChild(renderer.domElement);
+  addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+  buildArena();
+}
+
+function startFight(d1,d2){
+  if(rig1){ scene.remove(rig1.g); scene.remove(rig2.g); }
+  F1=new Sim(d1,+1); F2=new Sim(d2,-1); F1.human=true;
+  rig1=buildRig(d1,0xd43a2f); rig2=buildRig(d2,0x2f5fd4);
+  scene.add(rig1.g); scene.add(rig2.g);
+  document.getElementById('n1').textContent=d1.name+' \u201C'+d1.nick+'\u201D';
+  document.getElementById('n2').textContent=d2.name+' \u201C'+d2.nick+'\u201D';
+  document.getElementById('r1').textContent=d1.wc+' · '+d1.rec+' · '+d1.style.toUpperCase().replace('_',' ');
+  document.getElementById('r2').textContent=d2.wc+' · '+d2.rec+' · '+d2.style.toUpperCase().replace('_',' ');
+  document.getElementById('select').style.display='none';
+  document.getElementById('menu').style.display='none';
+  document.getElementById('hud').style.display='block';
+  humanControlled=true;
+  banner(null); match.start();
+}
+
+/* select screen */
+const CUSTOM = [];
+function fighterCard(def){
+  const c=document.createElement('div'); c.className='card';
+  const stat=(l,v)=>`<div class="stat"><i>${l}</i><div class="g"><div style="width:${v}%"></div></div></div>`;
+  c.innerHTML=`<h3>${def.name}${def.custom?'<span class="tag">CUSTOM</span>':''}</h3><div class="nick">\u201C${def.nick}\u201D</div>
+    <div class="meta">${def.wc} · ${def.rec}<br>${def.style.toUpperCase().replace('_',' ')}</div>
+    ${stat('PWR',def.STR)}${stat('SPD',def.SPD)}${stat('CRD',def.END)}${stat('CHN',def.chin)}`;
+  c.onclick=()=>{
+    if(!p1def){ p1def=def; c.classList.add('p1');
+      document.getElementById('prompt').textContent='SELECT OPPONENT (CPU)'; }
+    else startFight(p1def, def);
+  };
+  return c;
+}
+function buildSelect(){
+  const grid=document.getElementById('grid'); grid.innerHTML='';
+  [...ROSTER, ...CUSTOM].forEach(def=> grid.appendChild(fighterCard(def)));
+  const cc=document.createElement('div'); cc.className='card create';
+  cc.innerHTML='<h3>+ CREATE FIGHTER</h3>';
+  cc.onclick=openForge;
+  grid.appendChild(cc);
+}
+function showSelect(){
+  if(rig1){ scene.remove(rig1.g); scene.remove(rig2.g); rig1=rig2=null; }
+  F1=F2=null; p1def=null; match.over=true; match.live=false;
+  banner(null);
+  document.getElementById('hud').style.display='none';
+  document.getElementById('menu').style.display='none';
+  document.getElementById('select').style.display='flex';
+  document.getElementById('prompt').textContent='SELECT YOUR FIGHTER';
+  buildSelect();
+}
+function showMenu(){
+  if(rig1){ scene.remove(rig1.g); scene.remove(rig2.g); rig1=rig2=null; }
+  F1=F2=null; p1def=null; match.over=true; match.live=false;
+  banner(null);
+  document.getElementById('hud').style.display='none';
+  document.getElementById('select').style.display='none';
+  document.getElementById('menu').style.display='flex';
+}
+function watchMode(){
+  const pool=[...ROSTER, ...CUSTOM];
+  let a=Math.floor(Math.random()*pool.length), b=Math.floor(Math.random()*pool.length);
+  if(b===a) b=(b+1)%pool.length;
+  document.getElementById('menu').style.display='none';
+  startFight(pool[a], pool[b]);
+  humanControlled=false;
+}
+
+/* forge UI */
+let forgeSkin = SKIN_TONES[2];
+function openForge(){
+  const box=document.getElementById('cSkin');
+  if(!box.children.length){
+    SKIN_TONES.forEach((tone,i)=>{
+      const s=document.createElement('div'); s.className='sw'+(i===2?' sel':'');
+      s.style.background='#'+tone.toString(16).padStart(6,'0');
+      s.onclick=()=>{ forgeSkin=tone;
+        box.querySelectorAll('.sw').forEach(el=>el.classList.remove('sel')); s.classList.add('sel'); };
+      box.appendChild(s);
+    });
+    for(const id of ['POW','SPD','CRD','TGH','CHN','TEC']){
+      const sl=document.getElementById('c'+id);
+      sl.addEventListener('input',()=>{ document.getElementById('v'+id).textContent=sl.value; forgePool(); });
+    }
+    const h=document.getElementById('cHeight');
+    h.addEventListener('input',()=>{ document.getElementById('vHeight').textContent=h.value; });
+    document.getElementById('cCancel').onclick=()=>{ document.getElementById('editor').style.display='none'; };
+    document.getElementById('cCreate').onclick=commitForge;
+  }
+  forgePool();
+  document.getElementById('editor').style.display='flex';
+}
+function forgeVals(){
+  const v={}; for(const id of ['POW','SPD','CRD','TGH','CHN','TEC']) v[id]=+document.getElementById('c'+id).value;
+  return v;
+}
+function forgePool(){
+  const v=forgeVals(), used=Object.values(v).reduce((a,b)=>a+b,0), rem=FORGE_POOL-used;
+  const el=document.getElementById('pool');
+  el.textContent='POINTS REMAINING: '+rem;
+  el.classList.toggle('over', rem<0);
+  document.getElementById('cCreate').style.opacity = rem<0?0.4:1;
+  return rem;
+}
+function commitForge(){
+  if(forgePool()<0) return;                                   // over budget — no super-soldiers
+  const v=forgeVals();
+  const def=forgeFighter({
+    name:document.getElementById('cName').value, nick:document.getElementById('cNick').value,
+    style:document.getElementById('cStyle').value, height:+document.getElementById('cHeight').value,
+    skin:forgeSkin, ...v,
+  });
+  CUSTOM.push(def);
+  document.getElementById('editor').style.display='none';
+  buildSelect();
+}
+
+/* main loop: fixed 60Hz sim, rAF render */
+let last=0, acc=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-last)/1000,0.05); last=ts; acc+=dt; perf+=dt; renderDt=dt||1/60;
+  while(acc>=DT){ fixedStep(); acc-=DT; }
+  if(F1){ poseRig(rig1,F1,F2); poseRig(rig2,F2,F1); updateCamera(); hud(); }
+  renderer.render(scene,camera);
+}
+
+document.getElementById('mFight').onclick=showSelect;
+document.getElementById('mWatch').onclick=watchMode;
+document.getElementById('mForge').onclick=openForge;
+init3D(); buildSelect(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
