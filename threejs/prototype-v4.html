@@ -228,6 +228,7 @@ window.addEventListener('unhandledrejection', e=>{
         <div class="zone"><i>RL</i><div class="zbar"><div id="zlegR1"></div></div></div>
       </div>
       <div class="status" id="s1"></div>
+      <div id="q1" class="queue" style="font-size:9px;letter-spacing:1px;margin-top:2px;color:var(--gold)"></div>
     </div>
     <div class="side right">
       <div class="fname" id="n2">—</div><div class="frec" id="r2"></div>
@@ -243,6 +244,7 @@ window.addEventListener('unhandledrejection', e=>{
         <div class="zone"><i>RL</i><div class="zbar"><div id="zlegR2"></div></div></div>
       </div>
       <div class="status" id="s2"></div>
+      <div id="q2" class="queue" style="font-size:9px;letter-spacing:1px;margin-top:2px;color:var(--gold);text-align:right"></div>
     </div>
   </div>
   <div id="clockbox"><div id="round">ROUND 1</div><div id="clock">1:39</div></div>
@@ -372,13 +374,91 @@ class Sim {
     this.block=false;                                     // ★ 0-frame defense
     this.ev=null; this.evT=0;                             // {type:'slip'|'duck', stage}
     this.stun=0; this.stunT=0; this.downT=0; this.getupT=0; this.seated=false;
-    this.kd=0; this.roundDmg=0; this.buffered=null;
+    this.kd=0; this.roundDmg=0;
+    this.strikeQueue = [];
+    this.maxQueue = 3;
+    this.dispatchHistory = [];
+    this._feintedThisFrame = false;
     this.counterWin=0; this.guardT=0; this.ai = {cool:0.8, react:null};
     this.human=false;
     this.wobble=0;
   }
   // BUGFIX: was inverted — elite cardio (high gasT) must gas LATER, i.e. lower threshold
   gassed(){ return this.st/this.maxSt < 0.45 - this.def.gasT*0.003; }
+
+  queueMove(moveId) {
+    const m = MOVES[moveId];
+    if (!m) return false;
+    // Don't queue same limb twice in a row (prevents mashing the same punch)
+    if (this.strikeQueue.length > 0) {
+      const last = MOVES[this.strikeQueue[this.strikeQueue.length-1]];
+      if (last && last.limb === m.limb) return false;
+    }
+    if (this.strikeQueue.length >= this.maxQueue) return false;
+    this.strikeQueue.push(moveId);
+    return true;
+  }
+
+  dequeueNext() {
+    if (this.strikeQueue.length === 0) return null;
+    const moveId = this.strikeQueue[0];
+    const m = MOVES[moveId];
+    if (!m) { this.strikeQueue.shift(); return this.dequeueNext(); }
+
+    const limbFree = (this.phase === 'none');
+
+    if (limbFree) {
+      this.strikeQueue.shift();
+      return moveId;
+    }
+
+    // ★ RECOVERY CANCEL: if currently in recovery and within cancel window
+    if (this.phase === 'recovery') {
+      const cancelFrames = this.pfMax * 0.6;  // first 60% of recovery
+      if (this.pf > this.pfMax - cancelFrames) {
+        this.move = null;
+        this.phase = 'none';
+        this.pf = 0;
+        this.strikeQueue.shift();
+        return { moveId: moveId, isCancel: true };  // signal to caller
+      }
+    }
+    return null;  // busy, wait
+  }
+
+  drainQueue() {
+    this.strikeQueue = [];
+    this.dispatchHistory = [];
+  }
+
+  getQueueDisplay() {
+    return this.strikeQueue.slice(0, 3);
+  }
+
+  _checkCombo() {
+    const combos = {
+      '1-2':      [['jab','cross'], 0.05],
+      '2-3':      [['cross','hook'], 0.05],
+      '1-2-3':    [['jab','cross','hook'], 0.10],
+      '1-2-4':    [['jab','cross','uppercut'], 0.10],
+      'low-high': [['leg_kick','roundhouse'], 0.08],
+      'teep-cross':[['front_kick','cross'], 0.05],
+    };
+    for (const [name, [seq, dmgBonus]] of Object.entries(combos)) {
+      if (this.dispatchHistory.length < seq.length) continue;
+      const start = this.dispatchHistory.length - seq.length;
+      let match = true;
+      for (let i = 0; i < seq.length; i++) {
+        if (this.dispatchHistory[start + i] !== seq[i]) { match = false; break; }
+      }
+      if (match) {
+        this._comboActive = { name, dmgBonus, ender: seq[seq.length-1] };
+        fx.callout('COMBO ' + name + '!', '#f2c14e');
+        return;
+      }
+    }
+  }
+
   zoneFrac(z){
     if(z==='arms') return (this.zoneFrac('armL')+this.zoneFrac('armR'))/2;
     if(z==='legs') return (this.zoneFrac('legL')+this.zoneFrac('legR'))/2;
@@ -420,7 +500,7 @@ class Sim {
     const hm = Math.round(this.def.headMovement*0.035);            // up to +3f at 92 skill
     this.ev={type, stage:'startup', f:1, active:(type==='slip'?4:5)+hm, rec:3};
   }
-  interrupt(){ this.move=null; this.phase='none'; this.pf=0; this.state='idle'; this.buffered=null; }
+  interrupt(){ this.move=null; this.phase='none'; this.pf=0; this.state='idle';  }
 
   /* balance breaks the INSTANT it empties — mid-kick included. Very Sumotori. */
   drainBalance(amount){
@@ -436,7 +516,7 @@ class Sim {
 
   applyStun(tier, dur){
     if(tier<=0) return;
-    if(tier>=3){ this.interrupt(); this.ev=null; }
+    if(tier>=3){ this.interrupt(); this.drainQueue(); this.ev=null; }
     if(tier>=this.stun){ this.stun=tier; this.stunT=Math.max(this.stunT,dur); }
     if(tier===5){
       this.state='down'; this.kd++;
@@ -476,8 +556,27 @@ class Sim {
     this.bal = Math.min(100, this.bal + (11 + this.def.footwork*0.09)*DT);
     for(const z in this.vuln) if(this.vuln[z]>0) this.vuln[z]-=DT;
 
-    // ── defense first: it must win ties with attacks (design rule) ──
-    this.block = !!inp.block && this.canDefend();                   // instant on/off
+    // ── FEINT CHECK: Block during startup cancels the move ──
+    this._feintedThisFrame = false;
+    if (inp.block && this.phase === 'startup' && this.move && this.stun <= 1) {
+      // Feint: cancel startup, pay 40% stamina
+      const feintCost = this.move.stam * 0.4 * (this.gassed() ? 1.3 : 1);
+      this.st = Math.max(0, this.st - feintCost);
+      this.move = null;
+      this.phase = 'none';
+      this.pf = 0;
+      this.state = 'idle';
+      this._feintedThisFrame = true;
+      fx.callout('FEINT!', '#9fe3ff');
+      snd(220, 0.03, 0.08);
+    }
+    // ── Only apply defensive block if NOT feinting ──
+    if (!this._feintedThisFrame) {
+      this.block = !!inp.block && this.canDefend();
+      if (this.block) {
+        this.drainQueue();
+      }
+    }
     if(inp.evade && !this.ev) this.startEvade(inp.evade);
     if(this.ev){
       this.ev.f--;
@@ -514,9 +613,8 @@ class Sim {
     }
 
     // ── attack input (delayed by startup frames — the design rule) ──
-    if(inp.attack){
-      if(this.canAct() && this.stun<=2 && !this.block) this.startMove(inp.attack, foe); // tiers 1-2 CAN strike
-      else if(this.phase==='recovery' && this.pf<=8) this.buffered=inp.attack; // input buffer
+    if (inp.attack && this.stun <= 2) {
+      this.queueMove(inp.attack);
     }
 
     // ── move phase machine ──
@@ -539,14 +637,35 @@ class Sim {
           this.pf=this.frames(this.move.rc*(whiff?1.4:1),true); this.pfMax=this.pf;
         } else {
           this.phase='none'; this.state='idle';
-          const b=this.buffered; this.buffered=null; this.move=null;
-          if(b) this.startMove(b, foe);
+          this.move=null;
         }
       }
       // contact check on first active frame
       if(this.phase==='active' && !this.hitDone){
         this.hitDone=true;
         this.landed = resolveContact(this, foe);
+      }
+    }
+
+    // ── NEW: Try to dequeue next move ──
+    if (this.state === 'idle' || this.phase === 'none' || this.phase === 'recovery') {
+      const next = this.dequeueNext();
+      if (next) {
+        let cancelSurcharge = 0;
+        let moveId = next;
+        if (typeof next === 'object' && next.isCancel) {
+          moveId = next.moveId;
+          cancelSurcharge = 0.3;
+          snd(380, 0.02, 0.06);  // cancel whoosh
+        }
+        this.startMove(moveId, foe);
+        if (cancelSurcharge > 0) {
+          this.st = Math.max(0, this.st - MOVES[moveId].stam * cancelSurcharge);
+        }
+        // Track for combo detection
+        this.dispatchHistory.push(moveId);
+        if (this.dispatchHistory.length > 8) this.dispatchHistory.shift();
+        this._checkCombo();
       }
     }
 
@@ -615,6 +734,13 @@ function strikeVelocity(att, m){ // m/s at impact — arc-length integrated over
 function defSideEarly(m){ return (m.limb==='rear'||m.limb==='legRear') ? 'L' : 'R'; }
 function resolveContact(att, def){
   const m = att.move;
+
+  let comboBonus = 0;
+  if (att._comboActive && att.move && att.move.n === MOVES[att._comboActive.ender]?.n) {
+    comboBonus = att._comboActive.dmgBonus;
+  }
+  att._comboActive = null;
+
   // BUGFIX: downed/rising/finished fighters cannot be struck (no GnP in this slice) —
   // hits during the count were re-triggering knockdowns and inflating the 3-KD TKO rule
   if(def.state==='down'||def.state==='getup'||def.state==='ko') return false;
@@ -635,6 +761,11 @@ function resolveContact(att, def){
 
   // STEP 1-7: raw
   let raw = m.dmg;
+
+  if (comboBonus > 0) {
+    raw *= (1 + comboBonus);
+  }
+
   raw *= 1 + att.def.STR*0.01;                                   // 2 STR
   raw *= 0.5 + skill/200;                                        // 3 skill
   raw *= Math.max(0.2, 1 - Math.abs(range-m.reach*att.reachMult)*0.15/0.1*0.1); // 4 range falloff
@@ -1412,6 +1543,16 @@ function hud(){
     else if(f.zoneFrac('body')<0.35) t='BODY BROKEN';
     el.textContent=t; el.className='status'+(t?' warn':'');
   }
+
+  // Queue display
+  for(const [f, prefix] of [[F1,'q1'],[F2,'q2']]){
+    const queue = f.getQueueDisplay();
+    const el = document.getElementById(prefix);
+    if(el){
+      el.textContent = queue.length ? 'NEXT: ' + queue.map(id => MOVES[id]?.n||id).join(' → ') : '';
+    }
+  }
+
   const m=Math.floor(Math.max(0,match.t)/60), s=Math.floor(Math.max(0,match.t)%60);
   document.getElementById('clock').textContent=m+':'+String(s).padStart(2,'0');
   document.getElementById('round').textContent = match.rest>0?'REST':'ROUND '+match.round;
@@ -1456,6 +1597,8 @@ function init3D(){
 function startFight(d1,d2){
   if(rig1){ scene.remove(rig1.g); scene.remove(rig2.g); }
   F1=new Sim(d1,+1); F2=new Sim(d2,-1); F1.human=true;
+  F1.maxQueue = Math.max(2, Math.min(5, Math.floor(F1.def.SPD / 15) + 2));
+  F2.maxQueue = Math.max(2, Math.min(5, Math.floor(F2.def.SPD / 15) + 2));
   rig1=buildRig(d1,0xd43a2f); rig2=buildRig(d2,0x2f5fd4);
   scene.add(rig1.g); scene.add(rig2.g);
   document.getElementById('n1').textContent=d1.name+' \u201C'+d1.nick+'\u201D';
